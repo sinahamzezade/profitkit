@@ -29,14 +29,15 @@ has never been submitted. See `VERIFICATION.md`.
 | Adapter | Mock-tested against recorded shapes |
 | Privacy | Three mandatory webhooks; schema asserted free of customer identity |
 | Billing | `billing.check` wired; $29 recurring plan registered |
+| Install | `afterAuth` claims a once-per-shop backfill of the 60-day window; failure releases the claim so a later auth retries |
 
-188 tests. Lint and typecheck clean.
+196 tests. Lint and typecheck clean.
 
 ## Commands
 
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
-npm test               # 188 unit tests
+npm test               # 196 unit tests
 npm run seed           # regenerate the synthetic dataset (deterministic)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back
@@ -50,25 +51,29 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 
 1. **Nothing verified against a real store.** Every Shopify-facing claim rests on
    mocks and one quickstart dev store. `VERIFICATION.md` is the checklist.
-2. **Backfill is not wired into install.** `backfillShop` exists and is tested but
-   nothing calls it on OAuth completion. A new install ingests nothing until a
-   webhook fires.
-3. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
+2. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
    Fine for the target merchant, wrong for a large one.
-4. **Collection-level COGS never fires.** Logic and tests exist; collection
+3. **Collection-level COGS never fires.** Logic and tests exist; collection
    membership isn't ingested, so vendor is the only working group rung.
-5. **Exact per-product costs are CLI-only.** `setVariantCogsCents` is reached
+4. **Exact per-product costs are CLI-only.** `setVariantCogsCents` is reached
    solely by `npm run import-cogs`. A merchant can set a supplier-level percentage in
    cost settings, but has no way to upload a real cost sheet from inside the app.
-6. **Listing assets not produced.** Screenshots and the demo video are manual;
+5. **Listing assets not produced.** Screenshots and the demo video are manual;
    `LISTING.md` says which four screenshots and in what order.
-7. **Support email and privacy URL not provisioned.** `PRIVACY.md` must be
+6. **Support email and privacy URL not provisioned.** `PRIVACY.md` must be
    published at a public URL before submission.
-8. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
+7. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
    reserved pseudo-gateway name to avoid a migration for one integer.
 
 ## Decisions worth not re-litigating
 
+- **The install backfill is not awaited.** Holding the OAuth redirect open for a
+  60-day paginated pull would look like a hung install. It runs after the redirect
+  and the dashboard fills in; `runInstallBackfill` never throws, so it cannot take
+  the server down mid-install.
+- **`registerWebhooks` is deliberately not called from `afterAuth`.** Subscriptions
+  are declared in the toml and registered by `shopify app deploy`, which makes them
+  app-specific; `registerWebhooks` exists for shop-specific ones.
 - **Shipping delta is `cost − charged`,** not the reverse. HANDOVER's formula bullet
   had the sign inverted, which would have rewarded losing money on shipping.
 - **Shopify's `discountAllocations` is trusted, not recomputed.** The field audit

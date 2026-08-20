@@ -41,6 +41,13 @@ model Shop {
   domain    String   @unique
   createdAt DateTime @default(now())
 
+  // Set once the install-time backfill has pulled the 60 days `read_orders` allows.
+  // `afterAuth` fires on every OAuth completion — token refresh and scope changes
+  // included — not only on install, so without this marker a re-auth would re-pull
+  // the whole window. Null means "not done yet", which is also how a failed backfill
+  // is released so a later auth retries it.
+  backfilledAt DateTime?
+
   products  Product[]
   orders    Order[]
   cogsEntries CogsEntry[]
