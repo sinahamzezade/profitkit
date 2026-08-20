@@ -17,12 +17,15 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
+      {/* Merchant-facing views only. /app/audit still exists and is reachable by URL —
+          it's a developer diagnostic for checking which Shopify fields a store
+          actually returns, and VERIFICATION.md depends on it, but it is not
+          something a merchant should be navigating to. */}
       <s-app-nav>
         <s-link href="/app">Home</s-link>
         <s-link href="/app/products">Product margin</s-link>
         <s-link href="/app/leaks">Discounts &amp; refunds</s-link>
-        <s-link href="/app/audit">Field audit</s-link>
-        <s-link href="/app/additional">Additional page</s-link>
+        <s-link href="/app/settings">Cost settings</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

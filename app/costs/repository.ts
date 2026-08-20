@@ -52,6 +52,18 @@ export async function setVendorCogsPercent(shopId: string, vendor: string, perce
   });
 }
 
+/**
+ * Drops a group-level override so the products under it fall back to the global
+ * estimate. Deleting is the only way back down the ladder — setting a vendor to the
+ * same number as the global estimate looks identical in the report but keeps
+ * claiming to be a deliberate per-vendor decision.
+ */
+export async function clearVendorCogs(shopId: string, vendor: string) {
+  return prisma.cogsEntry.deleteMany({
+    where: { shopId, scope: "vendor", scopeKey: vendor },
+  });
+}
+
 export async function setVariantCogsCents(shopId: string, variantGid: string, cents: number) {
   return prisma.cogsEntry.upsert({
     where: { shopId_scope_scopeKey: { shopId, scope: "variant", scopeKey: variantGid } },
@@ -79,4 +91,67 @@ export async function setGlobalShippingCostCents(shopId: string, cents: number) 
     update: { percent: 0, flatCents: cents },
     create: { shopId, gatewayName: SHIPPING_COST_PSEUDO_GATEWAY, percent: 0, flatCents: cents },
   });
+}
+
+/**
+ * Gateways this shop has actually taken money through, and how many of their orders
+ * arrived without a fee from Shopify.
+ *
+ * Offering a free-text gateway field would be a trap: the name has to match what
+ * Shopify sends (`shopify_payments`, `cod`, …) or the rule silently never applies.
+ * Reading them from the orders means a merchant picks from their own data.
+ *
+ * `ordersMissingFee` is counted rather than inferred from a sum, because the fee is
+ * resolved per order: `resolveFee` prefers a reported fee and only falls back to a
+ * rule for the orders that have none. Shopify Payments reports fees, but not until a
+ * payout settles — so even there a rule is a useful fallback, not a redundancy.
+ */
+export async function listGateways(
+  shopId: string,
+): Promise<Array<{ gateway: string; orders: number; ordersMissingFee: number }>> {
+  const [totals, missing] = await Promise.all([
+    prisma.order.groupBy({
+      by: ["gatewayName"],
+      where: { shopId, gatewayName: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.order.groupBy({
+      by: ["gatewayName"],
+      where: { shopId, gatewayName: { not: null }, gatewayFeeCents: null },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const missingByGateway = new Map(
+    missing.map((row) => [row.gatewayName as string, row._count._all]),
+  );
+
+  return totals
+    .map((row) => ({
+      gateway: row.gatewayName as string,
+      orders: row._count._all,
+      ordersMissingFee: missingByGateway.get(row.gatewayName as string) ?? 0,
+    }))
+    .sort((a, b) => b.orders - a.orders);
+}
+
+/** Vendors present in the catalog, most products first. */
+export async function listVendors(
+  shopId: string,
+): Promise<Array<{ vendor: string; products: number }>> {
+  const rows = await prisma.product.groupBy({
+    by: ["vendor"],
+    where: { shopId, vendor: { not: null } },
+    _count: { _all: true },
+  });
+
+  return rows
+    .filter((row) => (row.vendor ?? "").trim() !== "")
+    .map((row) => ({ vendor: row.vendor as string, products: row._count._all }))
+    .sort((a, b) => b.products - a.products);
+}
+
+/** Removes a modelled fee rule, falling the gateway back to reporting nothing. */
+export async function clearFeeRule(shopId: string, gatewayName: string) {
+  return prisma.feeRule.deleteMany({ where: { shopId, gatewayName } });
 }

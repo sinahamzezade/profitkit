@@ -186,8 +186,9 @@ function CostEstimatePrompt({ hasCostData }: { hasCostData: boolean }) {
       )}
       <s-paragraph>
         <s-text tone="neutral">
-          Refine it per vendor, or import exact costs from a spreadsheet, once
-          you&apos;ve seen the shape of the answer.
+          Once you&apos;ve seen the shape of the answer, refine it per supplier and
+          add payment fees and shipping cost in{" "}
+          <s-link href="/app/settings">cost settings</s-link>.
         </s-text>
       </s-paragraph>
     </s-section>
