@@ -1,0 +1,196 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+// --- Margin engine domain model ------------------------------------------
+// All money columns are integer cents (minor units) — matches app/margin's
+// Cents type, avoids float drift. Every Shopify-sourced row carries the
+// shopifyGid it came from; upserts key on (shopId, shopifyGid) so replaying
+// a webhook is a no-op, not a duplicate.
+
+model Shop {
+  id        String   @id @default(cuid())
+  domain    String   @unique
+  createdAt DateTime @default(now())
+
+  products  Product[]
+  orders    Order[]
+  cogsEntries CogsEntry[]
+  feeRules  FeeRule[]
+
+  @@map("shops")
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopifyGid String
+  title      String
+  vendor     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  variants   Variant[]
+
+  @@unique([shopId, shopifyGid])
+  @@index([shopId, vendor])
+  @@map("products")
+}
+
+model Variant {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shopifyGid      String
+  sku             String?
+  priceCents      Int
+  /** inventoryItem.unitCost — only present for a minority of variants; null means unresolved by native data. */
+  nativeCogsCents Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  orderLines      OrderLine[]
+
+  @@unique([productId, shopifyGid])
+  @@map("variants")
+}
+
+model Order {
+  id                   String   @id @default(cuid())
+  shopId               String
+  shop                 Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopifyGid           String
+  name                 String
+  currencyCode         String
+  test                 Boolean  @default(false)
+  createdAtShopify     DateTime
+  shippingChargedCents Int
+  discountTotalCents   Int      @default(0)
+  /**
+   * Codes from DiscountCodeApplication. An array because Shopify allows combining
+   * discounts; automatic and manual discounts contribute no code and are reported
+   * separately rather than being dropped.
+   */
+  discountCodes        String[]
+  gatewayName          String?
+  /** transactions.fees amount — only set when Shopify actually reports it (Shopify Payments). */
+  gatewayFeeCents      Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  lines                OrderLine[]
+  refunds              Refund[]
+
+  @@unique([shopId, shopifyGid])
+  @@index([shopId, createdAtShopify])
+  @@map("orders")
+}
+
+model OrderLine {
+  id                     String   @id @default(cuid())
+  orderId                String
+  order                  Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId              String?
+  variant                Variant? @relation(fields: [variantId], references: [id])
+  shopifyGid             String
+  title                  String
+  sku                    String?
+  quantity               Int
+  originalTotalCents     Int
+  discountAllocatedCents Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  refunds                Refund[]
+
+  @@unique([orderId, shopifyGid])
+  @@map("order_lines")
+}
+
+model Refund {
+  id               String   @id @default(cuid())
+  orderId          String
+  order            Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderLineId      String
+  orderLine        OrderLine @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+  /** Groups the rows that came from the same Shopify refund event; a line can be refunded more than once over time. */
+  shopifyRefundGid String
+  quantity         Int
+  subtotalCents    Int
+  refundedAt       DateTime
+  /**
+   * Only present when the refund came through Shopify's Returns flow, which is
+   * where ReturnLineItem.returnReasonDefinition lives. A refund issued directly
+   * from the admin — the common case for small merchants — carries no structured
+   * reason at all, so this stays null and reporting says so rather than guessing.
+   */
+  reason           String?
+  /** Free-text note on the refund, the only explanation a manual refund ever has. */
+  note             String?
+  createdAt        DateTime @default(now())
+
+  @@unique([orderLineId, shopifyRefundGid])
+  @@map("refunds")
+}
+
+/** Cost-assumptions ladder inputs (Day 4 builds the resolution logic against this). */
+model CogsEntry {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /** "global" | "vendor" | "collection" | "variant" — precedence: variant > vendor/collection > global. */
+  scope       String
+  /** Vendor name, collection id, or variant id depending on scope; null for global. */
+  scopeKey    String?
+  costCents   Int?
+  costPercent Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, scope, scopeKey])
+  @@map("cogs_entries")
+}
+
+/** Modeled gateway fee rules, per payment method — the only path when Shopify doesn't report real fees. */
+model FeeRule {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  gatewayName String
+  percent     Float
+  flatCents   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, gatewayName])
+  @@map("fee_rules")
+}
