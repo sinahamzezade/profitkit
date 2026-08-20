@@ -1,0 +1,160 @@
+# Profitkit — Field Availability Audit
+# API version 2026-07
+# Scopes required: read_orders, read_products, read_inventory
+#
+# Purpose: confirm which margin inputs Shopify actually returns.
+# Run this against first-test-zenmt2u1 once the app is installed.
+# For each field below, record: present / null / absent from schema.
+
+query MarginFieldAudit {
+  orders(first: 5, sortKey: CREATED_AT, reverse: true) {
+    edges {
+      node {
+        id
+        name
+        createdAt
+        currencyCode
+        test
+
+        # --- Order-level revenue -------------------------------------
+        currentSubtotalPriceSet { shopMoney { amount currencyCode } }
+        currentTotalPriceSet    { shopMoney { amount } }
+        currentTotalTaxSet      { shopMoney { amount } }
+        netPaymentSet           { shopMoney { amount } }
+
+        # --- Shipping CHARGED (cost is NOT available anywhere) --------
+        totalShippingPriceSet { shopMoney { amount } }
+        shippingLines(first: 5) {
+          nodes {
+            title
+            carrierIdentifier
+            originalPriceSet { shopMoney { amount } }
+          }
+        }
+
+        # --- Discounts: check that allocations sum to the order total -
+        currentTotalDiscountsSet { shopMoney { amount } }
+        discountApplications(first: 10) {
+          nodes {
+            allocationMethod
+            targetSelection
+            targetType
+            value {
+              ... on MoneyV2        { amount currencyCode }
+              ... on PricingPercentageValue { percentage }
+            }
+          }
+        }
+
+        # --- Line items: the core of the margin calculation ----------
+        lineItems(first: 25) {
+          nodes {
+            id
+            title
+            sku
+            quantity
+            currentQuantity
+
+            originalTotalSet   { shopMoney { amount } }
+            discountedTotalSet { shopMoney { amount } }
+
+            # Shopify pre-allocates order-level discounts to lines.
+            # VERIFY this rather than reimplementing the allocation.
+            discountAllocations {
+              allocatedAmountSet { shopMoney { amount } }
+            }
+
+            taxLines { title rate priceSet { shopMoney { amount } } }
+
+            # COGS rung 0 — native cost field. Expect null on most stores.
+            variant {
+              id
+              sku
+              price
+              inventoryItem {
+                id
+                unitCost { amount currencyCode }
+              }
+            }
+          }
+        }
+
+        # --- Refunds: must reverse at LINE level, not pro-rata -------
+        refunds(first: 10) {
+          id
+          createdAt
+          totalRefundedSet { shopMoney { amount } }
+          refundLineItems(first: 25) {
+            nodes {
+              quantity
+              subtotalSet { shopMoney { amount } }
+              lineItem { id sku }
+            }
+          }
+        }
+
+        # --- Gateway fees: present for Shopify Payments only ---------
+        # For Telr/PayTabs/Tap/COD this comes back empty.
+        # If so, modeled fee rules are the only path — not a fallback.
+        transactions(first: 10) {
+          id
+          kind
+          status
+          gateway
+          paymentIcon { id }
+          amountSet { shopMoney { amount } }
+          fees {
+            id
+            type
+            rate
+            rateName
+            flatFee { amount currencyCode }
+            amount  { amount currencyCode }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+# ---------------------------------------------------------------------
+# Separate query: COGS fill rate across the catalog.
+# The single most important number for onboarding design.
+# If unitCost is null for most variants, rung 0 is decorative and the
+# estimate path carries the entire activation flow.
+# ---------------------------------------------------------------------
+
+query CogsFillRate {
+  productVariants(first: 250) {
+    nodes {
+      id
+      sku
+      price
+      product { title vendor }
+      inventoryItem {
+        unitCost { amount }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+
+
+# ---------------------------------------------------------------------
+# Record results in this table. It drives the Day 3 schema.
+#
+#   Input                   Field                          Status
+#   ---------------------   ----------------------------   ------
+#   Line revenue            lineItem.discountedTotalSet
+#   Discount allocation     lineItem.discountAllocations
+#   Refunds (line level)    refunds.refundLineItems
+#   Shipping charged        totalShippingPriceSet
+#   Tax                     lineItem.taxLines
+#   COGS                    inventoryItem.unitCost
+#   Gateway fees            transactions.fees
+#   Shipping ACTUAL cost    — does not exist —              ABSENT
+#
+# Any row that comes back null or absent becomes a merchant input,
+# and therefore a rung on the cost-assumptions ladder.
+# ---------------------------------------------------------------------
