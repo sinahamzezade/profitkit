@@ -10,6 +10,8 @@ export interface ProductMarginRow {
   productId: string;
   title: string;
   vendor: string | null;
+  /** Featured-image CDN URL. Null when Shopify has none, or the product is a seed. */
+  imageUrl: string | null;
   unitsSold: number;
   /** Orders this product appeared in — the denominator for per-order averages. */
   orderCount: number;
@@ -365,6 +367,7 @@ export function aggregateByProduct(
           productId,
           title: meta?.title ?? "(unknown product)",
           vendor: meta?.vendor ?? null,
+          imageUrl: meta?.imageUrl ?? null,
           unitsSold: 0,
           orderCount: 0,
           revenue: 0,

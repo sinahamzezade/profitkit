@@ -21,12 +21,17 @@ export async function upsertShop(domain: string) {
 export async function upsertProduct(shopId: string, product: RawProductNode) {
   const row = await prisma.product.upsert({
     where: { shopId_shopifyGid: { shopId, shopifyGid: product.id } },
-    update: { title: product.title, vendor: product.vendor },
+    update: {
+      title: product.title,
+      vendor: product.vendor,
+      imageUrl: product.imageUrl,
+    },
     create: {
       shopId,
       shopifyGid: product.id,
       title: product.title,
       vendor: product.vendor,
+      imageUrl: product.imageUrl,
     },
   });
 

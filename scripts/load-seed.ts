@@ -42,6 +42,7 @@ async function main() {
     id: p.id,
     title: p.title,
     vendor: p.vendor,
+    imageUrl: null,
     variants: [
       {
         id: p.variant.id,

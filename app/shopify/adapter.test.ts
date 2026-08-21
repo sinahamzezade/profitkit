@@ -6,6 +6,7 @@ import {
   fetchOrder,
   fetchOrdersSince,
   fetchProduct,
+  fetchProductImageUrls,
   isReturnsAccessDenied,
   paginate,
   ShopifyGraphqlError,
@@ -197,6 +198,7 @@ describe("product shapes", () => {
       id: "gid://shopify/Product/500",
       title: "Wool Blanket",
       vendor: "Northline",
+      imageUrl: null,
       variants: [
         {
           id: "gid://shopify/ProductVariant/11",
@@ -220,6 +222,42 @@ describe("product shapes", () => {
     });
     const product = await fetchProduct(graphql, "gid://shopify/Product/500");
     expect(product?.vendor).toBeNull();
+  });
+
+  it("reads the featured-image URL at the boundary", async () => {
+    const graphql = mockGraphql({
+      data: {
+        product: {
+          ...RECORDED_PRODUCT,
+          featuredMedia: {
+            preview: { image: { url: "https://cdn.shopify.com/blanket.jpg" } },
+          },
+        },
+      },
+    });
+    const product = await fetchProduct(graphql, "gid://shopify/Product/500");
+    expect(product?.imageUrl).toBe("https://cdn.shopify.com/blanket.jpg");
+  });
+
+  it("skips GIDs Shopify does not know rather than inventing an image", async () => {
+    const graphql = mockGraphql({
+      data: {
+        nodes: [
+          {
+            id: "gid://shopify/Product/500",
+            featuredMedia: {
+              preview: { image: { url: "https://cdn.shopify.com/blanket.jpg" } },
+            },
+          },
+          null,
+        ],
+      },
+    });
+    const urls = await fetchProductImageUrls(graphql, [
+      "gid://shopify/Product/500",
+      "gid://shopify/Product/9000000",
+    ]);
+    expect([...urls.keys()]).toEqual(["gid://shopify/Product/500"]);
   });
 
   it("returns null for a deleted product", async () => {

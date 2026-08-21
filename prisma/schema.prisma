@@ -63,6 +63,8 @@ model Product {
   shopifyGid String
   title      String
   vendor     String?
+  /** Featured-image CDN URL, sized at ingest. Null when Shopify has none. */
+  imageUrl   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -22,7 +22,7 @@ has been seen, and the app has never been submitted.
 | Area | State |
 |---|---|
 | Margin engine | Pure functions, no I/O, unit-tested |
-| Seeded dataset | 62 products, ~500 orders, 8 planted loss-makers, all detected |
+| Seeded dataset | 62 products, ~500 orders, 8 planted loss-makers, **7 detected** — `npm run seed` prints `✗ 1 planted losers were NOT detected: Heritage Candle`, which lands at **+$5.04** (rank 11/62, shipping-driven). The generator plants it but does not push it below zero, so the seed's own self-check fails. Calibration in the generator, not a detection bug — the engine is right that a product earning $5.04 is not losing money |
 | Persistence | Postgres, idempotent upserts keyed on Shopify GIDs |
 | Cost ladder | Global %, vendor override, CSV import; precedence verified against live data |
 | Cost settings | Global and per-supplier COGS, per-gateway fee rules, shipping cost — save round-trip verified against Postgres |
@@ -37,13 +37,17 @@ has been seen, and the app has never been submitted.
 | Billing | `billing.check` wired; $29 recurring plan registered |
 | Install | Verified on a live store: 17 products, 9 orders backfilled. Claimed once per shop from `afterAuth` *and* the app loader, since token-exchange sessions never call `afterAuth` |
 
-205 tests. Lint and typecheck clean.
+| Overview page | Split from one ~1,550-line route into 24 modules under `app/overview/`; the route is now 250 lines |
+| Charts | ApexCharts, dynamically imported so it stays out of the server bundle and its own ~279 kB gzip chunk loads after paint. Sparklines per stat card, horizontal bars for margin by month, with a screen-reader table beside the chart |
+| Product images | `imageUrl` column, set during ingestion, with a catch-up query for products ingested before the column existed |
+
+214 tests. Lint, typecheck and the production build clean.
 
 ## Commands
 
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
-npm test               # 205 unit tests
+npm test               # 214 unit tests
 npm run seed           # regenerate the synthetic dataset (deterministic)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back
@@ -79,14 +83,18 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
    published at a public URL before submission.
 8. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
    reserved pseudo-gateway name to avoid a migration for one integer.
-9. **Three routes still hardcode the palette.** `app/styles.ts` now holds the tokens
-   and `app.tsx` renders them once, and `app._index.tsx` uses them — but
-   `app.products.tsx`, `app.leaks.tsx` and `app.settings.tsx` still carry literal hex
-   values in their own `<style>` blocks. Two had already drifted: the hairline rule is
-   `#D8DED2` on the product page against `#E4E9E0` everywhere else, and "good" green is
-   `#2E5E3A` on the leaks page against `#12603F` on the overview. Sweeping them is a
-   restyle of three pages that no automated check can confirm, so it wants a session
-   in the admin with eyes on each page, not a find-and-replace.
+9. **Three routes still hardcode the palette, and one breaks the colour rule.**
+   `app/styles.ts` holds the tokens, `app.tsx` renders them once and `app._index.tsx`
+   uses them — but `app.products.tsx`, `app.leaks.tsx` and `app.settings.tsx` still
+   carry literal hex values in their own `<style>` blocks. The hairline rule is
+   `#D8DED2` on the product page against `#E4E9E0` everywhere else, which is only
+   drift. The leaks page is the substantive one: `.pk-ok` paints a paid-back verdict
+   green at `app.leaks.tsx:152`, which is the "green means good" the conventions
+   forbid — green is the cost ramp, and a figure that moved the right way should be
+   ink. The overview had the same bug (`--pk-good: #12603F` on every positive delta)
+   and it is fixed there. Sweeping the other three is a restyle no automated check can
+   confirm, so it wants a session in the admin with eyes on each page rather than a
+   find-and-replace.
 
 ## Decisions worth not re-litigating
 

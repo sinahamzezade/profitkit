@@ -112,6 +112,17 @@ const orderByIdQuery = (withReturns: boolean) => `#graphql
 export const ORDER_BY_ID_QUERY = orderByIdQuery(true);
 export const ORDER_BY_ID_QUERY_NO_RETURNS = orderByIdQuery(false);
 
+/** Thumbnail-sized featured image. Preview covers image, video and 3D media. */
+const PRODUCT_IMAGE_FIELDS = `
+  featuredMedia {
+    preview {
+      image {
+        url(transform: { maxWidth: 96, maxHeight: 96 })
+      }
+    }
+  }
+`;
+
 export const BACKFILL_PRODUCTS_QUERY = `#graphql
   query BackfillProducts($cursor: String) {
     products(first: 50, after: $cursor) {
@@ -119,6 +130,7 @@ export const BACKFILL_PRODUCTS_QUERY = `#graphql
         id
         title
         vendor
+        ${PRODUCT_IMAGE_FIELDS}
         variants(first: 100) {
           nodes {
             id
@@ -139,6 +151,7 @@ export const PRODUCT_BY_ID_QUERY = `#graphql
       id
       title
       vendor
+      ${PRODUCT_IMAGE_FIELDS}
       variants(first: 100) {
         nodes {
           id
@@ -146,6 +159,21 @@ export const PRODUCT_BY_ID_QUERY = `#graphql
           price
           inventoryItem { unitCost { amount } }
         }
+      }
+    }
+  }
+`;
+
+/**
+ * Catch-up for products ingested before imageUrl existed. `nodes` returns null
+ * for a GID Shopify does not know — seed placeholders — rather than erroring.
+ */
+export const PRODUCT_IMAGES_QUERY = `#graphql
+  query ProductImages($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Product {
+        id
+        ${PRODUCT_IMAGE_FIELDS}
       }
     }
   }

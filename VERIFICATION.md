@@ -144,6 +144,23 @@ signing path — not a hand-rolled request.
 
 ## 5. Billing
 
+> **Blocked, and not by code.** Every check below is unreachable until the app has
+> **public distribution** set in the Partner Dashboard. Pressing "Upgrade to Pro" on
+> 2026-08-21 returned the userError *"Apps without a public distribution cannot use
+> the Billing API"* — Shopify authenticated the mutation and refused it on that rule
+> alone. Nothing in this repo can lift it: `AppDistribution.AppStore` in
+> `app/shopify.server.ts` configures the SDK's auth behaviour, not the Dashboard's
+> distribution setting, and the two are unrelated despite the similar name.
+>
+> **Choosing a distribution method is irreversible.** Shopify does not allow it to be
+> changed once set, so it is a deliberate decision for the app owner, not a step to
+> take in passing while chasing a billing bug. Until it is set, treat this whole
+> section as untestable rather than failing.
+>
+> The failure path itself is now handled: the refusal renders as a critical banner
+> quoting Shopify's own wording and logs the full `userErrors` under `[billing]`,
+> instead of throwing a bare 500 the way it did when first pressed.
+
 - [ ] `/app/upgrade` redirects to Shopify's confirmation page.
 - [ ] Approving a **test** charge on a dev store flips `billing.check` to
       `hasActivePayment: true`.

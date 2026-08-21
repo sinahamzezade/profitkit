@@ -6,6 +6,7 @@ import {
   ORDER_BY_ID_QUERY,
   ORDER_BY_ID_QUERY_NO_RETURNS,
   PRODUCT_BY_ID_QUERY,
+  PRODUCT_IMAGES_QUERY,
 } from "./queries";
 
 /**
@@ -178,10 +179,13 @@ export async function fetchProduct(
  */
 function toProductNode(raw: unknown): RawProductNode {
   const variantNodes = (get(raw, "variants.nodes") as unknown[]) ?? [];
+  const imageUrl =
+    (get(raw, "featuredMedia.preview.image.url") as string | undefined) || null;
   return {
     id: get(raw, "id") as string,
     title: get(raw, "title") as string,
     vendor: (get(raw, "vendor") as string) || null,
+    imageUrl,
     variants: variantNodes.map((variant) => {
       const unitCost = get(variant, "inventoryItem.unitCost.amount") as string | undefined;
       return {
@@ -192,6 +196,30 @@ function toProductNode(raw: unknown): RawProductNode {
       };
     }),
   };
+}
+
+/**
+ * Featured-image URLs for products already in the catalog. Used to fill rows
+ * ingested before imageUrl existed; a GID Shopify does not know comes back as
+ * a null node and is skipped, which is how seed placeholders stay imageless
+ * rather than erroring the dashboard.
+ */
+export async function fetchProductImageUrls(
+  graphql: GraphqlClient,
+  ids: string[],
+): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  if (ids.length === 0) return urls;
+
+  const data = await run(graphql, PRODUCT_IMAGES_QUERY, { ids });
+  const nodes = (get(data, "nodes") as unknown[]) ?? [];
+  for (const node of nodes) {
+    if (node == null) continue;
+    const id = get(node, "id") as string | undefined;
+    const url = get(node, "featuredMedia.preview.image.url") as string | undefined;
+    if (id && url) urls.set(id, url);
+  }
+  return urls;
 }
 
 export function backfillSince(now: Date): Date {

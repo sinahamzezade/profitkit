@@ -11,6 +11,8 @@ export interface RawProductNode {
   id: string;
   title: string;
   vendor: string | null;
+  /** Featured-image CDN URL, or null when the product has no media. */
+  imageUrl: string | null;
   variants: RawVariantNode[];
 }
 

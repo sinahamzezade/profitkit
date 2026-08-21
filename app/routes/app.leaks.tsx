@@ -238,7 +238,13 @@ function RefundReasons({
 
 export default function Leaks() {
   const data = useLoaderData<typeof loader>();
-  const upgrade = useFetcher();
+  /*
+   * Typed rather than bare. An untyped `useFetcher()` gives `data: any`, so reading
+   * `upgrade.data.error` type-checks whether or not the action ever returns that
+   * shape — which is how the refusal went unnoticed. This mirrors what
+   * app/routes/app.upgrade.tsx returns when Shopify declines the charge.
+   */
+  const upgrade = useFetcher<{ error?: string; detail?: string | null }>();
 
   if (!data.ready) {
     return (
@@ -319,16 +325,33 @@ export default function Leaks() {
 
       {limits.tier === "free" && (
         <s-section heading="On the free plan">
-          <s-paragraph>
-            You&apos;re seeing the last {limits.windowDays} days. Pro adds full history
-            and an accountant-ready export for ${PRO_PLAN.amount} a month.
-          </s-paragraph>
-          <s-button
-            variant="primary"
-            onClick={() => upgrade.submit({}, { method: "POST", action: "/app/upgrade" })}
-          >
-            Upgrade to Pro
-          </s-button>
+          <s-stack gap="base">
+            <s-paragraph>
+              You&apos;re seeing the last {limits.windowDays} days. Pro adds full history
+              and an accountant-ready export for ${PRO_PLAN.amount} a month.
+            </s-paragraph>
+            <s-button
+              variant="primary"
+              {...(upgrade.state !== "idle" ? { loading: true } : {})}
+              onClick={() =>
+                upgrade.submit({}, { method: "POST", action: "/app/upgrade" })
+              }
+            >
+              Upgrade to Pro
+            </s-button>
+            {/* A refused charge used to surface as nothing at all: the action threw,
+                the fetcher held the error, and no one read it. */}
+            {upgrade.data?.error && (
+              <s-banner tone="critical" heading="Could not start the subscription">
+                <s-stack gap="small-200">
+                  <s-paragraph>{upgrade.data.error}</s-paragraph>
+                  {upgrade.data.detail && (
+                    <s-paragraph>{upgrade.data.detail}</s-paragraph>
+                  )}
+                </s-stack>
+              </s-banner>
+            )}
+          </s-stack>
         </s-section>
       )}
     </s-page>

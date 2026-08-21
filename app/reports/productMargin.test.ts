@@ -22,6 +22,7 @@ function row(overrides: Partial<ProductMarginRow> = {}): ProductMarginRow {
     marginPercent: 0.57,
     estimated: false,
     costSource: "global",
+    imageUrl: null,
     ...overrides,
   };
 }
