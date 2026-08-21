@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type ApexCharts from "apexcharts";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -15,6 +16,7 @@ import { listGateways, setGlobalCogsPercent } from "../costs/repository";
 import { GUIDE_URL, hasGuide, hasVideo, VIDEO_URL } from "../docs";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
 import {
+  aggregateByDay,
   aggregateByMonth,
   aggregateByProduct,
   aggregateByVendor,
@@ -33,25 +35,26 @@ import {
 import { buildHeroReport, DRIVER_LABELS } from "../reports/lossLeaders";
 
 /** Days of order history the report covers, from the data itself rather than a guess. */
-async function resolvePeriodDays(shopId: string): Promise<number> {
+async function resolvePeriod(shopId: string, since: Date | null) {
+  const where = { shopId, ...(since ? { createdAtShopify: { gte: since } } : {}) };
   const [oldest, newest] = await Promise.all([
     prisma.order.findFirst({
-      where: { shopId },
+      where,
       orderBy: { createdAtShopify: "asc" },
       select: { createdAtShopify: true },
     }),
     prisma.order.findFirst({
-      where: { shopId },
+      where,
       orderBy: { createdAtShopify: "desc" },
       select: { createdAtShopify: true },
     }),
   ]);
-  if (!oldest || !newest) return 0;
-  const days = Math.round(
-    (newest.createdAtShopify.getTime() - oldest.createdAtShopify.getTime()) /
-      86_400_000,
-  );
-  return Math.max(1, days);
+  if (!oldest || !newest) return { days: 0, from: null, to: null };
+
+  const from = oldest.createdAtShopify;
+  const to = newest.createdAtShopify;
+  const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000));
+  return { days, from, to };
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -74,14 +77,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Orders are loaded once and aggregated three ways. Each panel calling its own
   // builder would re-read the whole window per panel.
-  const [orders, periodDays, anyOrder] = await Promise.all([
+  const [orders, period, anyOrder] = await Promise.all([
     loadOrdersForMargin(shop.id, limits.since ?? undefined),
-    resolvePeriodDays(shop.id),
+    resolvePeriod(shop.id, limits.since),
     prisma.order.findFirst({
       where: { shopId: shop.id },
       select: { currencyCode: true },
     }),
   ]);
+  const periodDays = period.days;
   const erosion = buildErosionReport(orders);
 
   const rows = aggregateByProduct(orders, config);
@@ -115,6 +119,50 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shippingCost: config.shipping.globalPerOrderCents != null,
   };
 
+  /*
+   * Previous-period comparison for the stat deltas.
+   *
+   * The comparison window is the same length as the current one, immediately
+   * before it, and is only loaded when the tier's own query bound reaches that far
+   * back. On free, a 90-day view would need 180 days to compare against, which the
+   * bound forbids — so rather than quietly widen a paid boundary, the cards show no
+   * delta and the caption says the period is uncompared.
+   */
+  const windowMs =
+    period.from && period.to ? period.to.getTime() - period.from.getTime() : 0;
+  const priorFrom =
+    period.from && windowMs > 0 ? new Date(period.from.getTime() - windowMs) : null;
+  const canCompare =
+    priorFrom !== null && (limits.since === null || priorFrom >= limits.since);
+
+  const priorOrders =
+    canCompare && period.from
+      ? await loadOrdersForMargin(shop.id, priorFrom, period.from)
+      : [];
+  const priorTotals = applyReportOptions(
+    canCompare ? aggregateByProduct(priorOrders, config) : [],
+    { pageSize: 100_000 },
+  ).totals;
+  const priorErosion = canCompare ? buildErosionReport(priorOrders) : null;
+
+  const stats = {
+    from: period.from ? period.from.toISOString() : null,
+    to: period.to ? period.to.toISOString() : null,
+    days:
+      period.from && period.to
+        ? aggregateByDay(orders, config, period.from, period.to)
+        : [],
+    previous: canCompare
+      ? {
+          contributionMargin: priorTotals.contributionMargin,
+          revenue: priorTotals.revenue,
+          negativeProducts: priorTotals.negativeProducts,
+          givenBack:
+            (priorErosion?.totalDiscounts ?? 0) + (priorErosion?.totalRefunds ?? 0),
+        }
+      : null,
+  };
+
   // The counterpoint to the loss list. Seeing only what's broken gives no sense of
   // what a healthy product looks like in this catalog.
   const earners = [...rows]
@@ -139,6 +187,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     currency,
     hasCostData: setup.costEstimate,
     setup,
+    stats,
     productCount: report.totalRows,
     totalMargin: report.totals.contributionMargin,
   };
@@ -182,24 +231,17 @@ type SetupState = {
 };
 
 /**
- * Setup guide, in the shape Shopify uses for onboarding: heading, one line of
- * purpose, "n / 4 completed" with a progress bar, an overflow menu and a collapse
- * chevron.
- *
- * The progress is real — every step is derived from store state in the loader, so
- * it cannot claim a step is done when it isn't, and it fills in by itself as the
- * merchant works. The order is the order that makes the numbers trustworthy:
+ * The four steps that make the numbers trustworthy, in the order that does it:
  * orders arrive, then one cost estimate makes every figure meaningful, then the
  * two costs Shopify cannot supply remove the last guesses.
  *
- * Collapse is session-only. Persisting it would mean either a schema column or
- * localStorage, and localStorage read during render is a hydration mismatch —
- * which on this app presents as a blank page, not a warning.
+ * Split out of the component because the page itself needs to know whether they
+ * are all done — it demotes the guide to the foot of the page and lets the finding
+ * lead once there is nothing left to do. Two separate completeness tests would
+ * drift apart the first time a step was added.
  */
-function SetupGuide({ setup }: { setup: SetupState }) {
-  const [open, setOpen] = useState(true);
-
-  const steps = [
+function setupSteps(setup: SetupState) {
+  return [
     {
       done: setup.ordersImported,
       title: "Import your orders",
@@ -215,12 +257,22 @@ function SetupGuide({ setup }: { setup: SetupState }) {
     {
       done: setup.paymentFees,
       title: "Add your payment fee rates",
+      /*
+       * Three states, not two. A done step still has gateways that report no fee —
+       * that is why a rate was needed — so reusing the outstanding wording once the
+       * rates exist told the merchant their orders count as free to process while
+       * the step sat ticked above it.
+       */
       body:
         setup.gatewaysNeedingRule === 0
           ? "Nothing to do — Shopify reports the real fee for every gateway this store uses."
-          : `${setup.gatewaysNeedingRule} ${
-              setup.gatewaysNeedingRule === 1 ? "gateway" : "gateways"
-            } ${setup.gatewaysNeedingRule === 1 ? "reports" : "report"} no fee, so those orders currently count as free to process.`,
+          : setup.paymentFees
+            ? `Covered. ${setup.gatewaysNeedingRule} ${
+                setup.gatewaysNeedingRule === 1 ? "gateway reports" : "gateways report"
+              } no fee of their own, and your rates now stand in for them.`
+            : `${setup.gatewaysNeedingRule} ${
+                setup.gatewaysNeedingRule === 1 ? "gateway" : "gateways"
+              } ${setup.gatewaysNeedingRule === 1 ? "reports" : "report"} no fee, so those orders currently count as free to process.`,
       action: { label: "Open cost settings", href: "/app/settings" },
     },
     {
@@ -230,9 +282,35 @@ function SetupGuide({ setup }: { setup: SetupState }) {
       action: { label: "Open cost settings", href: "/app/settings" },
     },
   ];
+}
 
+function setupProgress(setup: SetupState) {
+  const steps = setupSteps(setup);
   const done = steps.filter((s) => s.done).length;
+  return { steps, done, complete: done === steps.length };
+}
+
+/**
+ * Setup guide, in the shape Shopify uses for onboarding: heading, one line of
+ * purpose, "n / 4 completed" with a progress bar, an overflow menu and a collapse
+ * chevron.
+ *
+ * The progress is real — every step is derived from store state in the loader, so
+ * it cannot claim a step is done when it isn't, and it fills in by itself as the
+ * merchant works.
+ *
+ * Collapse is session-only. Persisting it would mean either a schema column or
+ * localStorage, and localStorage read during render is a hydration mismatch —
+ * which on this app presents as a blank page, not a warning.
+ */
+function SetupGuide({ setup }: { setup: SetupState }) {
+  const { steps, done, complete } = setupProgress(setup);
   const pct = Math.round((done / steps.length) * 100);
+
+  // Open while there is work left, shut once there isn't. A finished guide held
+  // open is the largest thing on the page and says nothing; closed, it reads as a
+  // receipt and the numbers get the room.
+  const [open, setOpen] = useState(!complete);
 
   return (
     <s-section>
@@ -240,7 +318,9 @@ function SetupGuide({ setup }: { setup: SetupState }) {
         <div className="pk-guide-title">
           <s-heading>Setup guide</s-heading>
           <s-text tone="neutral">
-            Use this guide to get accurate profit numbers as quickly as possible.
+            {complete
+              ? "Every step done. The figures above use your own costs, not defaults."
+              : "Use this guide to get accurate profit numbers as quickly as possible."}
           </s-text>
         </div>
         <s-stack direction="inline" gap="small-300" alignItems="center">
@@ -278,7 +358,12 @@ function SetupGuide({ setup }: { setup: SetupState }) {
           aria-valuemax={steps.length}
           aria-label={`${done} of ${steps.length} setup steps completed`}
         >
-          <span className="pk-guide-fill" style={{ width: `${pct}%` }} />
+          {/* scaleX rather than width: a width transition lays out and repaints on
+              every frame, a transform is composited. */}
+          <span
+            className="pk-guide-fill"
+            style={{ transform: `scaleX(${pct / 100})` }}
+          />
         </span>
       </div>
 
@@ -523,26 +608,161 @@ function CoveragePanel({
   );
 }
 
-/** A KPI tile. Value first, label under it — the number is what's being scanned. */
-function Kpi({
+/**
+ * Sparkline for a stat card. Polaris ships no chart, so this is ApexCharts in
+ * sparkline mode — loaded on the client because the library touches `window`.
+ *
+ * Zero stays inside the scaled range, so a dip into negative margin reads as a
+ * dip instead of being flattened by autoscaling to the series' own min.
+ *
+ * Loss red only when the trend on this card is the bad outcome. Otherwise the
+ * ledger bar green, never a decorative "up is good" fill.
+ */
+function Spark({
+  series,
+  bad,
+  format,
+}: {
+  series: number[];
+  bad: boolean;
+  format?: (n: number) => string;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const formatRef = useRef(format);
+  formatRef.current = format;
+  const seriesKey = series.join(",");
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el || seriesKey.length === 0) return;
+    const values = seriesKey.split(",").map(Number);
+    if (values.length < 2) return;
+
+    let chart: ApexCharts | undefined;
+    let cancelled = false;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const color = bad ? "#B3261E" : "#47573E";
+    const min = Math.min(0, ...values);
+    const max = Math.max(0, ...values);
+
+    void import("apexcharts").then(({ default: Apex }) => {
+      if (cancelled || !host.current) return;
+      chart = new Apex(host.current, {
+        chart: {
+          type: "area",
+          height: 72,
+          sparkline: { enabled: true },
+          animations: { enabled: !reduceMotion, speed: 450 },
+          fontFamily: "inherit",
+          toolbar: { show: false },
+        },
+        series: [{ data: values }],
+        stroke: { curve: "straight", width: 1.5 },
+        fill: { type: "solid", opacity: 0.16 },
+        colors: [color],
+        yaxis: { min, max: max === min ? min + 1 : max },
+        tooltip: {
+          theme: "light",
+          x: { show: false },
+          y: {
+            title: { formatter: () => "" },
+            formatter: (val: number) => {
+              const n = Math.round(val);
+              return formatRef.current ? formatRef.current(n) : String(n);
+            },
+          },
+          marker: { show: false },
+        },
+      });
+      void chart.render();
+    });
+
+    return () => {
+      cancelled = true;
+      chart?.destroy();
+    };
+  }, [seriesKey, bad]);
+
+  if (series.length < 2) return null;
+  return <div ref={host} className="pk-spark" />;
+}
+
+/** Period-over-period change, or null when there is nothing real to compare against. */
+function changeOf(current: number, previous: number | null) {
+  if (previous == null) return null;
+  // A previous period of zero has no percentage — "up ∞%" is noise, so the card
+  // shows direction only.
+  if (previous === 0) {
+    if (current === 0) return { dir: "flat" as const, label: "no change" };
+    return { dir: current > 0 ? ("up" as const) : ("down" as const), label: "new" };
+  }
+  const ratio = (current - previous) / Math.abs(previous);
+  if (Math.abs(ratio) < 0.001) return { dir: "flat" as const, label: "0%" };
+  return {
+    dir: ratio > 0 ? ("up" as const) : ("down" as const),
+    label: `${Math.abs(ratio * 100).toFixed(Math.abs(ratio) < 0.1 ? 1 : 0)}%`,
+  };
+}
+
+/**
+ * One KPI, as its own Polaris card.
+ *
+ * Direction is what happened; tone is whether it is good. The two diverge on
+ * "Given back" and "Products losing money", where up is the bad outcome.
+ */
+function StatCard({
   label,
   value,
   detail,
-  tone,
+  change,
+  series,
+  formatSeries,
+  /** True when a rise in this figure is bad news — money leaving, products failing. */
+  inverted = false,
 }: {
   label: string;
   value: string;
   detail?: string;
-  tone?: "loss" | "plain";
+  change: ReturnType<typeof changeOf>;
+  series?: number[];
+  formatSeries?: (n: number) => string;
+  inverted?: boolean;
 }) {
+  const bad =
+    change == null || change.dir === "flat"
+      ? false
+      : inverted
+        ? change.dir === "up"
+        : change.dir === "down";
+
   return (
-    <div className="pk-kpi">
-      <span className={`pk-kpi-value${tone === "loss" ? " pk-down" : ""}`}>
-        {value}
-      </span>
-      <span className="pk-kpi-label">{label}</span>
-      {detail && <span className="pk-kpi-detail">{detail}</span>}
-    </div>
+    <s-section heading={label}>
+      <s-stack gap="small-200">
+        <p
+          className={`pk-stat-value${inverted && value !== "0" ? " pk-down" : ""}`}
+        >
+          {value}
+        </p>
+        <s-stack direction="inline" gap="small-200" alignItems="center">
+          {change ? (
+            <span className={`pk-stat-change${bad ? " is-bad" : ""}`}>
+              <span aria-hidden="true">
+                {change.dir === "up" ? "↑" : change.dir === "down" ? "↓" : "—"}
+              </span>
+              <span className="num">{change.label}</span>
+            </span>
+          ) : null}
+          {detail ? (
+            <s-text tone="neutral">{detail}</s-text>
+          ) : null}
+        </s-stack>
+        {series ? (
+          <Spark series={series} bad={bad} format={formatSeries} />
+        ) : null}
+      </s-stack>
+    </s-section>
   );
 }
 
@@ -671,6 +891,7 @@ export default function Index() {
     currency,
     hasCostData,
     setup,
+    stats,
     productCount,
     months,
     coverage,
@@ -684,6 +905,59 @@ export default function Index() {
   const openProduct = (title: string) => navigate(productHref(title));
   const marginPercent = totalRevenue === 0 ? null : totalMargin / totalRevenue;
 
+  /*
+   * States the window, and whether it was actually compared. Printing "compared to
+   * the previous period" when nothing was compared is the kind of unearned claim
+   * this app exists not to make.
+   */
+  const dateFmt = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const periodCaption =
+    !stats.from || !stats.to
+      ? "No orders in this period yet."
+      : `Showing ${dateFmt.format(new Date(stats.from))} – ${dateFmt.format(
+          new Date(stats.to),
+        )}${
+          stats.previous
+            ? " compared to the previous period"
+            : ". Not enough history on this plan to compare periods."
+        }`;
+
+  /*
+   * The finding, stated first and in words.
+   *
+   * The page used to open with a setup guide and a date range, which meant the one
+   * question the app exists to answer — what is losing money — sat three sections
+   * down inside a widget. It leads now.
+   *
+   * No losers is a real result rather than an empty state, so it gets its own
+   * sentence instead of a zero.
+   */
+  const losing = hero.losers.length;
+  const verdict =
+    losing === 0 ? (
+      <>Nothing sold at a loss over the last {hero.periodDays} days.</>
+    ) : (
+      <>
+        <strong className="pk-down">
+          {losing} {losing === 1 ? "product" : "products"}
+        </strong>{" "}
+        cost you {formatMoney(Math.abs(hero.totalLost))} over the last{" "}
+        {hero.periodDays} days.
+      </>
+    );
+
+  // The caveat belongs beside the claim, not two sections below it. A headline loss
+  // figure resting mostly on guessed costs should say so where it is read.
+  const loosePercent = Math.round(coverage.looseShare * 100);
+
+  // Drives whether the guide leads the page or closes it.
+  const setupDone = setupProgress(setup).complete;
+
   return (
     <s-page heading="Profit overview">
       <style>{PK_STYLES}</style>
@@ -691,48 +965,86 @@ export default function Index() {
         See every product
       </s-button>
 
-      <SetupGuide setup={setup} />
+      {/* The guide leads only while it still changes the numbers. Once every step
+          is done it renders collapsed at the foot of the page instead — a finished
+          checklist held open is the largest thing on screen saying nothing. */}
+      {!setupDone && <SetupGuide setup={setup} />}
       {!hasCostData && <CostEstimatePrompt hasCostData={false} />}
 
-      {/* KPI strip. Four figures that frame everything below — no sparklines, no
-          percentage-change badges against a period nobody chose. */}
+      {/*
+        Finding, then the four figures it rests on — each figure its own card so
+        the sparkline has a surface to sit in, rather than a hairline column.
+      */}
       <s-section>
-        <div className="pk-kpis">
-          <Kpi
-            label={`Contribution margin · ${hero.periodDays} days`}
-            value={formatMoney(totalMargin)}
-            detail={
-              marginPercent == null
-                ? undefined
-                : `${(marginPercent * 100).toFixed(1)}% of revenue`
-            }
-          />
-          <Kpi
-            label="Revenue after discounts"
-            value={formatMoney(totalRevenue)}
-          />
-          <Kpi
-            label="Products losing money"
-            value={String(hero.losers.length)}
-            detail={`of ${productCount} sold`}
-            tone={hero.losers.length > 0 ? "loss" : "plain"}
-          />
-          <Kpi
-            label="Given back"
-            value={formatMoney(erosion.totalDiscounts + erosion.totalRefunds)}
-            detail="discounts and refunds"
-            tone="loss"
-          />
-        </div>
+        <p className="pk-lead-line">{verdict}</p>
+        <p className="pk-lead-sub">
+          {periodCaption}
+          {loosePercent > 0 &&
+            ` · ${loosePercent}% of that revenue rests on a guessed cost.`}
+        </p>
       </s-section>
 
-      <s-section heading="Margin by month">
-        <TrendPanel months={months} formatMoney={formatMoney} />
-      </s-section>
+      <s-grid
+        gridTemplateColumns="repeat(auto-fit, minmax(16rem, 1fr))"
+        gap="base"
+      >
+        <StatCard
+          label={`Contribution margin · ${hero.periodDays} days`}
+          value={formatMoney(totalMargin)}
+          detail={
+            marginPercent == null
+              ? undefined
+              : `${(marginPercent * 100).toFixed(1)}% of revenue`
+          }
+          change={changeOf(
+            totalMargin,
+            stats.previous?.contributionMargin ?? null,
+          )}
+          series={stats.days.map((d) => d.contributionMargin)}
+          formatSeries={formatMoney}
+        />
+        <StatCard
+          label="Revenue after discounts"
+          value={formatMoney(totalRevenue)}
+          change={changeOf(totalRevenue, stats.previous?.revenue ?? null)}
+          series={stats.days.map((d) => d.revenue)}
+          formatSeries={formatMoney}
+        />
+        <StatCard
+          label="Products losing money"
+          value={String(hero.losers.length)}
+          detail={`of ${productCount} sold`}
+          change={changeOf(
+            hero.losers.length,
+            stats.previous?.negativeProducts ?? null,
+          )}
+          inverted
+        />
+        <StatCard
+          label="Given back"
+          value={formatMoney(erosion.totalDiscounts + erosion.totalRefunds)}
+          detail="discounts and refunds"
+          change={changeOf(
+            erosion.totalDiscounts + erosion.totalRefunds,
+            stats.previous?.givenBack ?? null,
+          )}
+          series={stats.days.map((d) => d.givenBack)}
+          formatSeries={formatMoney}
+          inverted
+        />
+      </s-grid>
 
-      <s-section>
-        <div className="pk-grid">
-          <section className="pk-widget">
+      {/*
+        Losses lead the detail, with the earners beside them rather than below —
+        a loss list alone gives no sense of what healthy looks like in this
+        catalogue. The two are not equals, so the split is 1.6 to 1, not 50/50.
+      */}
+      <s-section heading="Where the money goes">
+        <div className="pk-split">
+          <section
+            className="pk-widget pk-widget-lead"
+            style={{ "--i": 0 } as CSSProperties}
+          >
             <h3 className="pk-widget-title">
               Losing money
               {hero.losers.length > 0 && (
@@ -759,7 +1071,7 @@ export default function Index() {
             />
           </section>
 
-          <section className="pk-widget">
+          <section className="pk-widget" style={{ "--i": 1 } as CSSProperties}>
             <h3 className="pk-widget-title">Earning most</h3>
             <RankedProducts
               rows={earners.map((row: ProductMarginRow) => ({
@@ -777,12 +1089,37 @@ export default function Index() {
             />
           </section>
 
-          <section className="pk-widget">
+        </div>
+      </s-section>
+
+      {/* Trend beside confidence. "Is it improving" is only worth reading next to
+          how much of the answer is measured rather than assumed, and the two were
+          previously four sections apart. */}
+      <s-section>
+        <div className="pk-split">
+          <section
+            className="pk-widget pk-widget-lead"
+            style={{ "--i": 0 } as CSSProperties}
+          >
+            <h3 className="pk-widget-title">
+              Margin by month
+              <span className="pk-widget-meta">is it improving</span>
+            </h3>
+            <TrendPanel months={months} formatMoney={formatMoney} />
+          </section>
+
+          <section className="pk-widget" style={{ "--i": 1 } as CSSProperties}>
             <h3 className="pk-widget-title">How solid these numbers are</h3>
             <CoveragePanel coverage={coverage} formatMoney={formatMoney} />
           </section>
+        </div>
+      </s-section>
 
-          <section className="pk-widget">
+      {/* Rhythm flips here — narrow left, wide right — so the page reads as a
+          composition rather than a stack of identical slabs. */}
+      <s-section>
+        <div className="pk-split pk-split-r">
+          <section className="pk-widget" style={{ "--i": 0 } as CSSProperties}>
             <h3 className="pk-widget-title">Discounts and refunds</h3>
             <ul className="pk-erosion">
               <li>
@@ -813,7 +1150,7 @@ export default function Index() {
             </s-button>
           </section>
 
-          <section className="pk-widget pk-widget-wide">
+          <section className="pk-widget" style={{ "--i": 1 } as CSSProperties}>
             <h3 className="pk-widget-title">
               Margin by vendor
               <span className="pk-widget-meta">worst first</span>
@@ -851,13 +1188,87 @@ export default function Index() {
       )}
 
       {hasCostData && <CostEstimatePrompt hasCostData />}
+
+      {/* Demoted, not removed. It is still where a merchant checks what the figures
+          are built on, and re-opening it costs one click. */}
+      {setupDone && <SetupGuide setup={setup} />}
     </s-page>
   );
 }
 
+/*
+ * What this page needs and the Polaris web components do not ship.
+ *
+ * Anything Polaris draws — cards, buttons, banners, text fields, icons, menus — is
+ * left to Polaris. What remains is the progress bar, the bar charts, and the
+ * layout grids. The stat sparklines are ApexCharts, loaded on the client.
+ *
+ * The palette itself is not here. It lives in app/styles.ts and is rendered once by
+ * the app layout, because four routes each keeping their own copy had already let
+ * two of the colours drift apart.
+ */
 const PK_STYLES = `
-  /* Setup guide. Polaris has no progress or collapse component, so the bar and
-     the step rows are drawn here; everything else uses native components. */
+  /* One entrance, staggered by --i, transform and opacity only. Off entirely for
+     anyone who has asked for less motion. */
+  @keyframes pk-rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .pk-widget {
+      animation: pk-rise 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(var(--i, 0) * 55ms);
+    }
+  }
+
+  /* ---- lead ---- */
+
+  .pk-lead-line {
+    margin: 0;
+    max-width: 34ch;
+    font-size: 1.4rem;
+    font-weight: 450;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: var(--pk-ink);
+  }
+  .pk-lead-line strong { font-weight: 650; }
+  .pk-lead-sub {
+    margin: 0.45rem 0 0;
+    max-width: 72ch;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--pk-muted);
+  }
+
+  /* ---- stat cards ---- */
+
+  .pk-stat-value {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    color: var(--pk-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .pk-stat-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--pk-good);
+    white-space: nowrap;
+  }
+  .pk-stat-change.is-bad { color: var(--pk-loss); }
+  .pk-spark { width: 100%; min-height: 72px; }
+
+  @media (max-width: 30rem) {
+    .pk-lead-line { font-size: 1.2rem; }
+  }
+
+  /* ---- setup guide ---- */
+
   .pk-guide-head {
     display: flex;
     align-items: flex-start;
@@ -872,20 +1283,25 @@ const PK_STYLES = `
     gap: 0.75rem;
     margin-top: 0.9rem;
   }
-  .pk-guide-count { font-size: 0.75rem; color: #6B7367; white-space: nowrap; }
+  .pk-guide-count { font-size: 0.75rem; color: var(--pk-muted); white-space: nowrap; }
   .pk-guide-bar {
     display: block;
     flex: 0 1 12rem;
     height: 6px;
     border-radius: 3px;
-    background: #E4E9E0;
+    background: var(--pk-rule);
     overflow: hidden;
   }
   .pk-guide-fill {
     display: block;
+    width: 100%;
     height: 100%;
-    background: #10160F;
-    transition: width 320ms cubic-bezier(0.2, 0.7, 0.3, 1);
+    background: var(--pk-ink);
+    transform-origin: left center;
+    transition: transform 320ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pk-guide-fill { transition: none; }
   }
 
   .pk-guide-steps { list-style: none; margin: 1.25rem 0 0; padding: 0; }
@@ -893,158 +1309,47 @@ const PK_STYLES = `
     display: flex;
     gap: 0.7rem;
     padding-block: 0.7rem;
-    border-top: 1px solid #E4E9E0;
+    border-top: 1px solid var(--pk-rule);
   }
   .pk-guide-step-body { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
-  .pk-guide-step-title { margin: 0; font-size: 0.875rem; font-weight: 600; color: #10160F; }
-  .pk-guide-step-note { margin: 0; font-size: 0.8rem; line-height: 1.5; color: #6B7367; max-width: 62ch; }
-  /* A finished step steps back visually so the eye lands on what is left. */
-  .pk-guide-step.is-done .pk-guide-step-title { color: #6B7367; font-weight: 500; }
+  .pk-guide-step-title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--pk-ink); }
+  .pk-guide-step-note {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--pk-muted);
+  }
+  /* A finished step steps back so the eye lands on what is left. */
+  .pk-guide-step.is-done .pk-guide-step-title { color: var(--pk-muted); font-weight: 500; }
 
   .pk-guide-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin-top: 1rem; }
 
-  .pk-cases {
-    --pk-cost-1: #212B1B;
-    --pk-cost-2: #47573E;
-    --pk-cost-3: #6E8064;
-    --pk-cost-4: #9BAD90;
-    --pk-loss:   #B3261E;
-    --pk-rule:   #D8DED2;
-    margin-top: 1.1rem;
-  }
+  /* ---- layout ---- */
 
-  .pk-finding {
-    margin: 0 0 0.3rem;
-    font-size: 1.05rem;
-    color: #10160F;
-  }
-  .pk-finding-amount {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: #B3261E;
-  }
-  .pk-method {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #6B7367;
-    max-width: 64ch;
-  }
-
-  .pk-case {
-    padding: 0.95rem 0 1rem;
-    border-top: 1px solid var(--pk-rule);
-  }
-  .pk-case:last-child { border-bottom: 1px solid var(--pk-rule); }
-
-  .pk-case-head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.55rem;
-  }
-  .pk-rank {
-    font-variant-numeric: tabular-nums;
-    font-size: 0.78rem;
-    color: #96A08F;
-    min-width: 1ch;
-    flex: none;
-  }
-  .pk-case-name {
-    font: inherit;
-    font-weight: 600;
-    font-size: 1rem;
-    color: #10160F;
-    background: none;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    text-align: left;
-    border-bottom: 1px solid transparent;
-  }
-  .pk-case-name:hover { border-bottom-color: #10160F; }
-  .pk-case-name:focus-visible { outline: 2px solid #2F4858; outline-offset: 2px; }
-
-  /* A quiet marker, not a pill: the swatch points at the bar, the words name it. */
-  .pk-cause {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.76rem;
-    color: #6B7367;
-    flex: none;
-  }
-  .pk-swatch {
-    display: inline-block;
-    width: 0.55rem; height: 0.55rem;
-    border-radius: 2px;
-    flex: none;
-  }
-
-  .pk-case-total {
-    margin-left: auto;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    font-size: 1.15rem;
-    color: var(--pk-loss);
-    flex: none;
-  }
-  .pk-case-total-ok { color: #10160F; }
-  .pk-case-period {
-    display: block;
-    font-weight: 400;
-    font-size: 0.72rem;
-    color: #6B7367;
-  }
-
-  .pk-verdict {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #4A5348;
-    max-width: 70ch;
-  }
-  .pk-per-unit { color: #10160F; font-weight: 600; }
-
-  .pk-case-thin { padding-block: 0.75rem; }
-  .pk-case-thin .pk-case-head { align-items: center; }
-
-  /* ---- dashboard ---- */
-
-  .pk-kpis {
+  /* Asymmetric on purpose. Equal columns say the two panels matter equally, and
+     they do not: losses are the job, earners are the reference point. */
+  .pk-split {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: 0.25rem 1.5rem;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 1.5rem 2.75rem;
   }
-  .pk-kpi {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    padding: 0.2rem 0;
-  }
-  .pk-kpi-value {
-    font-variant-numeric: tabular-nums;
-    font-size: 1.55rem;
-    font-weight: 600;
-    line-height: 1.1;
-    color: #10160F;
-  }
-  .pk-kpi-label { font-size: 0.78rem; color: #4A5348; }
-  .pk-kpi-detail { font-size: 0.74rem; color: #96A08F; }
+  .pk-split-r { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
 
-  .pk-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(23rem, 1fr));
-    gap: 1.4rem 2rem;
+  @media (max-width: 56rem) {
+    .pk-split,
+    .pk-split-r { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
   }
-  /* Widgets are separated by rules rather than nested cards — the Polaris section
-     already draws a card, and a card inside a card reads as clutter. */
+
+  /* Panels are separated by a rule, not nested in their own cards — the Polaris
+     section already draws one, and a card inside a card reads as clutter. */
   .pk-widget {
     display: flex;
     flex-direction: column;
     min-width: 0;
     padding-top: 1rem;
-    border-top: 1px solid #E4E9E0;
+    border-top: 1px solid var(--pk-rule);
   }
-  .pk-widget-wide { grid-column: 1 / -1; }
   .pk-widget-title {
     display: flex;
     align-items: baseline;
@@ -1052,15 +1357,33 @@ const PK_STYLES = `
     margin: 0 0 0.7rem;
     font-size: 0.92rem;
     font-weight: 600;
-    color: #10160F;
+    color: var(--pk-ink);
   }
+  .pk-widget-lead .pk-widget-title { font-size: 1rem; }
   .pk-widget-meta {
     margin-left: auto;
     font-weight: 400;
     font-size: 0.75rem;
-    color: #6B7367;
+    color: var(--pk-muted);
   }
   .pk-widget-empty { margin: 0; font-size: 0.88rem; }
+
+  /* ---- ranked lists ---- */
+
+  .pk-case-name {
+    font: inherit;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--pk-ink);
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    border-bottom: 1px solid transparent;
+  }
+  .pk-case-name:hover { border-bottom-color: var(--pk-ink); }
+  .pk-case-name:focus-visible { outline: 2px solid #2F4858; outline-offset: 2px; }
 
   .pk-ranked { list-style: none; margin: 0; padding: 0; }
   .pk-ranked-row {
@@ -1068,7 +1391,7 @@ const PK_STYLES = `
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.15rem 0.75rem;
     padding-block: 0.4rem;
-    border-bottom: 1px solid #EFF2ED;
+    border-bottom: 1px solid var(--pk-hair);
   }
   .pk-ranked-row:last-child { border-bottom: 0; }
   .pk-ranked-value {
@@ -1076,12 +1399,42 @@ const PK_STYLES = `
     font-weight: 600;
     font-size: 0.9rem;
     text-align: right;
-    color: #10160F;
+    color: var(--pk-ink);
   }
   .pk-ranked-note {
     grid-column: 1 / -1;
     font-size: 0.75rem;
-    color: #6B7367;
+    color: var(--pk-muted);
+  }
+
+  /* ---- bar charts ---- */
+
+  .pk-panel-lead { margin: 0 0 0.7rem; font-size: 0.95rem; color: var(--pk-ink); }
+  .pk-panel-note {
+    margin: 0.8rem 0 0;
+    max-width: 64ch;
+    font-size: 0.78rem;
+    color: var(--pk-muted);
+  }
+
+  .pk-trend { list-style: none; margin: 0; padding: 0; }
+  .pk-trend-row {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr) 6rem;
+    align-items: center;
+    gap: 0.75rem;
+    padding-block: 0.3rem;
+  }
+  .pk-trend-month { font-size: 0.82rem; color: var(--pk-body); }
+  .pk-trend-month abbr { text-decoration: none; color: var(--pk-faint); }
+  .pk-trend-track { display: block; height: 0.75rem; background: var(--pk-track); border-radius: 2px; }
+  .pk-trend-bar { display: block; height: 100%; background: var(--pk-bar); border-radius: 2px; }
+  .pk-trend-bar-loss { background: var(--pk-loss); }
+  .pk-trend-value {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    text-align: right;
+    color: var(--pk-ink);
   }
 
   .pk-vendors { list-style: none; margin: 0; padding: 0; }
@@ -1096,57 +1449,22 @@ const PK_STYLES = `
     display: flex;
     align-items: baseline;
     gap: 0.4rem;
-    font-size: 0.86rem;
-    color: #10160F;
     min-width: 0;
+    font-size: 0.86rem;
+    color: var(--pk-ink);
   }
-  .pk-vendor-count { font-size: 0.72rem; color: #96A08F; }
-  .pk-vendor-track { display: block; height: 0.7rem; background: #F1F4EE; border-radius: 2px; }
-  .pk-vendor-bar { display: block; height: 100%; background: #47573E; border-radius: 2px; }
-  .pk-vendor-bar-loss { background: #B3261E; }
+  .pk-vendor-count { font-size: 0.72rem; color: var(--pk-faint); }
+  .pk-vendor-track { display: block; height: 0.7rem; background: var(--pk-track); border-radius: 2px; }
+  .pk-vendor-bar { display: block; height: 100%; background: var(--pk-bar); border-radius: 2px; }
+  .pk-vendor-bar-loss { background: var(--pk-loss); }
   .pk-vendor-value {
     font-variant-numeric: tabular-nums;
     font-size: 0.85rem;
     text-align: right;
-    color: #10160F;
+    color: var(--pk-ink);
   }
 
-  @media (max-width: 40rem) {
-    .pk-vendor-row { grid-template-columns: minmax(0, 1fr) 5.5rem; }
-    .pk-vendor-track { display: none; }
-  }
-
-  /* ---- panels ---- */
-
-  .pk-panel-lead { margin: 0 0 0.7rem; font-size: 0.95rem; color: #10160F; }
-  .pk-panel-note {
-    margin: 0.8rem 0 0;
-    font-size: 0.78rem;
-    color: #6B7367;
-    max-width: 64ch;
-  }
-  .pk-up { color: #10160F; }
-  .pk-down { color: #B3261E; }
-
-  .pk-trend { list-style: none; margin: 0; padding: 0; }
-  .pk-trend-row {
-    display: grid;
-    grid-template-columns: 3.5rem minmax(0, 1fr) 6rem;
-    align-items: center;
-    gap: 0.75rem;
-    padding-block: 0.3rem;
-  }
-  .pk-trend-month { font-size: 0.82rem; color: #4A5348; }
-  .pk-trend-month abbr { text-decoration: none; color: #96A08F; }
-  .pk-trend-track { display: block; height: 0.75rem; background: #F1F4EE; border-radius: 2px; }
-  .pk-trend-bar { display: block; height: 100%; background: #47573E; border-radius: 2px; }
-  .pk-trend-bar-loss { background: #B3261E; }
-  .pk-trend-value {
-    font-variant-numeric: tabular-nums;
-    font-size: 0.85rem;
-    text-align: right;
-    color: #10160F;
-  }
+  /* ---- coverage and erosion ---- */
 
   .pk-coverage { list-style: none; margin: 0; padding: 0; }
   .pk-coverage-row {
@@ -1159,17 +1477,17 @@ const PK_STYLES = `
   }
   .pk-tier-dot { width: 0.6rem; height: 0.6rem; border-radius: 2px; }
   .pk-tier-measured  { background: #212B1B; }
-  .pk-tier-grouped   { background: #47573E; }
+  .pk-tier-grouped   { background: var(--pk-bar); }
   .pk-tier-estimated { background: #9BAD90; }
-  .pk-tier-unset     { background: #F1F4EE; box-shadow: inset 0 0 0 1px #C6CFC0; }
-  .pk-coverage-label { color: #4A5348; }
+  .pk-tier-unset     { background: var(--pk-track); box-shadow: inset 0 0 0 1px #C6CFC0; }
+  .pk-coverage-label { color: var(--pk-body); }
   .pk-coverage-count,
   .pk-coverage-revenue {
     font-variant-numeric: tabular-nums;
     text-align: right;
-    color: #10160F;
+    color: var(--pk-ink);
   }
-  .pk-coverage-count { color: #6B7367; }
+  .pk-coverage-count { color: var(--pk-muted); }
 
   .pk-erosion { list-style: none; margin: 0 0 1rem; padding: 0; }
   .pk-erosion li {
@@ -1178,7 +1496,7 @@ const PK_STYLES = `
     align-items: baseline;
     gap: 0.75rem;
     padding-block: 0.34rem;
-    border-top: 1px solid #E4E9E0;
+    border-top: 1px solid var(--pk-rule);
     font-size: 0.9rem;
   }
   .pk-erosion li span:nth-child(2) {
@@ -1186,7 +1504,7 @@ const PK_STYLES = `
     text-align: right;
     font-weight: 600;
   }
-  .pk-erosion-detail { color: #6B7367; font-size: 0.82rem; }
+  .pk-erosion-detail { color: var(--pk-muted); font-size: 0.82rem; }
 
   @media (max-width: 52rem) {
     .pk-trend-row { grid-template-columns: 3rem minmax(0, 1fr) 5rem; gap: 0.5rem; }
@@ -1194,19 +1512,18 @@ const PK_STYLES = `
     .pk-erosion li { grid-template-columns: minmax(0, 1fr) auto; }
     .pk-erosion-detail { grid-column: 1 / -1; }
   }
-
-  .pk-footnote {
-    margin: 1.1rem 0 0;
-    font-size: 0.78rem;
-    color: #6B7367;
-    max-width: 64ch;
+  @media (max-width: 40rem) {
+    .pk-vendor-row { grid-template-columns: minmax(0, 1fr) 5.5rem; }
+    .pk-vendor-track { display: none; }
   }
+
+  /* ---- suspects and the estimate form ---- */
 
   .pk-suspects {
     margin: 0.6rem 0 0;
     padding-left: 1.1rem;
     font-size: 0.9rem;
-    color: #4A5348;
+    color: var(--pk-body);
   }
   .pk-suspects li { padding-block: 0.15rem; }
 
@@ -1217,12 +1534,6 @@ const PK_STYLES = `
     gap: 0.6rem 0.75rem;
   }
   .pk-estimate-field { flex: 0 1 14rem; min-width: 0; }
-
-  @media (max-width: 40rem) {
-    .pk-case-head { flex-wrap: wrap; }
-    .pk-cause { order: 3; width: 100%; }
-    .pk-case-total { font-size: 1.05rem; }
-  }
 `;
 
 export const headers: HeadersFunction = (headersArgs) => {

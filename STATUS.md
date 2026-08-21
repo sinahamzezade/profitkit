@@ -79,6 +79,14 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
    published at a public URL before submission.
 8. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
    reserved pseudo-gateway name to avoid a migration for one integer.
+9. **Three routes still hardcode the palette.** `app/styles.ts` now holds the tokens
+   and `app.tsx` renders them once, and `app._index.tsx` uses them — but
+   `app.products.tsx`, `app.leaks.tsx` and `app.settings.tsx` still carry literal hex
+   values in their own `<style>` blocks. Two had already drifted: the hairline rule is
+   `#D8DED2` on the product page against `#E4E9E0` everywhere else, and "good" green is
+   `#2E5E3A` on the leaks page against `#12603F` on the overview. Sweeping them is a
+   restyle of three pages that no automated check can confirm, so it wants a session
+   in the admin with eyes on each page, not a find-and-replace.
 
 ## Decisions worth not re-litigating
 

@@ -5,6 +5,7 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
 import { startInstallBackfill } from "../shopify/install";
+import { PK_TOKENS } from "../styles";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -28,6 +29,11 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
+      {/* Palette and the two or three helpers every page uses, rendered once here
+          rather than repeated inside each route's own style block. Page-specific
+          rules stay with their page. */}
+      <style>{PK_TOKENS}</style>
+
       {/* Merchant-facing views only. /app/audit still exists and is reachable by URL —
           it's a developer diagnostic for checking which Shopify fields a store
           actually returns, and VERIFICATION.md depends on it, but it is not
