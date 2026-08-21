@@ -206,7 +206,12 @@ signing path — not a hand-rolled request.
 - **60 days of history at install.** `read_orders` cannot see further back
   without `read_all_orders`, which needs a written application to Shopify. Any
   listing copy promising 90 days is wrong.
-- **Actual shipping cost does not exist in the API.** Always a merchant input.
+- **Actual shipping cost does not exist in the API.** Always a merchant input, and
+  therefore one global figure per order rather than a per-product cost. The
+  consequence, which reads like a bug until you know it: **shipping is only ever named
+  as a loss cause when that global figure exceeds what the merchant charges.** A
+  product that is genuinely expensive to ship cannot be identified as such, because
+  nothing in the data distinguishes it from the rest of the order.
 - **Gateway fees exist only for Shopify Payments.** For Telr, PayTabs, Tap, COD
   and every other gateway, modelled rules are the only path — not a fallback.
 - **Refund reasons exist only via the Returns flow.** Refunds issued from the

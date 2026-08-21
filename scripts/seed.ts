@@ -79,6 +79,15 @@ for (const p of plantedLosers) {
 console.log();
 if (missedPlantedLosers.length === 0) {
   console.log(`✓ All ${plantedLosers.length} planted losers came back with negative margin.`);
+  // Said out loud because the ✓ invites the wrong conclusion. This is the engine
+  // checked against costs the generator invented. The app never sees those — it has
+  // the cost ladder — so its own ranking is a different list of products, and no
+  // per-product shipping plant can ever make it blame shipping, because shipping is
+  // one global figure per order there. See STATUS.md.
+  console.log(
+    "  (against the generator's ground-truth costs, not the app's estimates —\n" +
+      "   the app's own ranking is a different list. `npm run reconcile` checks that.)",
+  );
 } else {
   console.log(
     `✗ ${missedPlantedLosers.length} planted losers were NOT detected: ${missedPlantedLosers

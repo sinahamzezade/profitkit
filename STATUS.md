@@ -22,7 +22,7 @@ has been seen, and the app has never been submitted.
 | Area | State |
 |---|---|
 | Margin engine | Pure functions, no I/O, unit-tested |
-| Seeded dataset | 62 products, ~500 orders, 8 planted loss-makers, **all 8 detected** and holding ranks 1–8, with exactly one organic loser behind them. Shipping-driven plants used to survive: shipping cost was `price × 0.6–0.8`, which on a cheap product is under the $9.99 the store charges for the whole order, and the engine's even split then spread what loss there was onto innocent basket-mates. A planted shipping loser now costs more to ship than its entire gross margin plus the highest rate charged, and ships alone — Heritage Candle went from **+$5.04** to **−$147.39** |
+| Seeded dataset | 62 products, ~500 orders, 8 planted loss-makers, **all 8 detected** by `npm run seed` and holding ranks 1–8, with one organic loser behind them. Detection there is against the generator's **ground truth**, not the app's view — see the note below the table, which matters more than it sounds. Shipping plants used to survive the check: cost was `price × 0.6–0.8`, under the $9.99 charged for a whole order on a cheap product, and the even split then spread what loss existed onto innocent basket-mates. A shipping plant now costs more to ship than its entire gross margin plus the highest rate charged, and ships alone — Heritage Candle went from **+$5.04** to **−$147.39** |
 | Persistence | Postgres, idempotent upserts keyed on Shopify GIDs |
 | Cost ladder | Global %, vendor override, CSV import; precedence verified against live data |
 | Cost settings | Global and per-supplier COGS, per-gateway fee rules, shipping cost — save round-trip verified against Postgres |
@@ -40,7 +40,27 @@ has been seen, and the app has never been submitted.
 | Charts | ApexCharts, dynamically imported so it stays out of the server bundle and its own ~279 kB gzip chunk loads after paint. Sparklines per stat card, horizontal bars for margin by month, with a screen-reader table beside the chart |
 | Product images | `imageUrl` column, set during ingestion, with a catch-up query for products ingested before the column existed |
 
-220 tests. Lint, typecheck and the production build clean.
+239 tests. Lint, typecheck and the production build clean.
+
+### The seed's losers and the app's losers are different lists, on purpose
+
+`npm run seed` reports its 8 planted losers using costs the generator invented —
+true per-unit COGS and true per-unit shipping. The app has neither. It sees the cost
+ladder: a global percentage, a vendor override, Shopify's native field. That gap *is*
+the product, so the two lists should not match and it is not a bug when they don't.
+Measured on the current dataset: the seed names 8, the app's hero report names 6, and
+**they share none of the same products**.
+
+One consequence is worth stating because it looks like a defect. **No loss will ever be
+attributed to shipping by a per-product plant.** Shipping cost does not exist in
+Shopify's API, so the app models it as one global figure per order — currently $6.50
+against charged rates of $4.99–$9.99. A planted per-unit shipping cost is invisible to
+it however large. Shipping shows up as a cause only when a merchant's own global
+shipping cost genuinely exceeds what they charge.
+
+So the seed's check proves the engine's arithmetic given known costs. The app's ranking
+proves the ladder produces a sensible answer given estimates. Neither tests the other,
+and `npm run reconcile` is what ties the app's own figures back to its raw rows.
 
 ## Commands
 

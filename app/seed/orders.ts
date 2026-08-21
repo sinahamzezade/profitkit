@@ -80,9 +80,14 @@ export function generateOrders(
      * loss. Raising the shipping cost cannot fix it: the more expensive the product,
      * the more gross margin there is to cushion a third of the loss.
      *
-     * Shipping it alone is also what a bulky item actually does, and it keeps the
-     * cause attributable — the whole point of the plant is that the app should name
-     * shipping, not cost of goods.
+     * Shipping it alone is also what a bulky item actually does.
+     *
+     * What this does *not* do is make the app blame shipping for the loss. The app
+     * never sees these per-unit shipping costs — they are the generator's ground
+     * truth, and Shopify has no such field. It models shipping as one global figure
+     * per order, so a per-product shipping plant is invisible to it however large.
+     * The plant proves the engine's arithmetic against known costs, which is what
+     * `npm run seed` checks; it is not a fixture for the app's loss attribution.
      *
      * Same shape as the discount/refund plant below, which likewise needs the order
      * generator's cooperation for the catalog flag to mean anything.
