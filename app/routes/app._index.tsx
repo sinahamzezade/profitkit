@@ -12,7 +12,7 @@ import { authenticate } from "../shopify.server";
 import { hasAnyCogsConfigured } from "../costs/cogs";
 import { resolveTierForShop, resolveTierLimits } from "../billing/tier";
 import { setGlobalCogsPercent } from "../costs/repository";
-import { GUIDE_URL, hasVideo, VIDEO_URL } from "../docs";
+import { GUIDE_URL, hasGuide, hasVideo, VIDEO_URL } from "../docs";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
 import {
   aggregateByMonth,
@@ -30,10 +30,7 @@ import {
   TIER_LABELS,
   type CostCoverage,
 } from "../reports/costCoverage";
-import {
-  buildHeroReport,
-  DRIVER_LABELS,
-} from "../reports/lossLeaders";
+import { buildHeroReport, DRIVER_LABELS } from "../reports/lossLeaders";
 
 /** Days of order history the report covers, from the data itself rather than a guess. */
 async function resolvePeriodDays(shopId: string): Promise<number> {
@@ -154,29 +151,40 @@ function productHref(title: string) {
  * than being dismissible, since the questions it answers ("why is this an
  * estimate", "how do I get real costs in") recur long after install.
  *
- * The video link renders only when `VIDEO_URL` is set. See app/docs.ts.
+ * Native Polaris only: this is page chrome, not the data surface. The video
+ * link renders only when `VIDEO_URL` is set. See app/docs.ts.
  */
 function HowToUse() {
   return (
     <s-section heading="New here?">
       <s-paragraph>
         Profitkit works out what each product actually leaves behind after cost of
-        goods, payment fees, shipping and refunds. The three-minute version: set one
-        cost estimate below, read the ranking, then sharpen the costs that matter.
+        goods, payment fees, shipping and refunds. The three-minute version:
       </s-paragraph>
-      <div className="pk-help">
-        <s-link href={GUIDE_URL} target="_blank">
-          Read the walkthrough
-        </s-link>
-        {hasVideo && (
-          <s-link href={VIDEO_URL} target="_blank">
-            Watch the video
-          </s-link>
-        )}
-        <s-text tone="neutral">
-          Opens on profitkit.app in a new tab.
-        </s-text>
-      </div>
+      <s-ordered-list>
+        <s-list-item>Set one cost estimate</s-list-item>
+        <s-list-item>Read the ranking</s-list-item>
+        <s-list-item>Sharpen the costs that matter</s-list-item>
+      </s-ordered-list>
+      {/* Both links are gated. The guide URL previously pointed at profitkit.app,
+          which belongs to a different company — so this rendered a link sending
+          merchants to a competitor. Nothing renders until a confirmed domain is
+          set in app/docs.ts. */}
+      {(hasGuide || hasVideo) && (
+        <s-stack direction="inline" gap="base" alignItems="center">
+          {hasGuide && (
+            <s-link href={GUIDE_URL} target="_blank">
+              Read the walkthrough
+            </s-link>
+          )}
+          {hasVideo && (
+            <s-link href={VIDEO_URL} target="_blank">
+              Watch the video
+            </s-link>
+          )}
+          <s-text tone="neutral">Opens in a new tab.</s-text>
+        </s-stack>
+      )}
     </s-section>
   );
 }
@@ -191,7 +199,9 @@ function CostEstimatePrompt({ hasCostData }: { hasCostData: boolean }) {
   const saving = fetcher.state !== "idle";
 
   return (
-    <s-section heading={hasCostData ? "Adjust your cost estimate" : "Start here"}>
+    <s-section
+      heading={hasCostData ? "Adjust your cost estimate" : "Start here"}
+    >
       <s-paragraph>
         {hasCostData
           ? "This applies to every product without a cost of its own."
@@ -220,8 +230,8 @@ function CostEstimatePrompt({ hasCostData }: { hasCostData: boolean }) {
       )}
       <s-paragraph>
         <s-text tone="neutral">
-          Once you&apos;ve seen the shape of the answer, refine it per supplier and
-          add payment fees and shipping cost in{" "}
+          Once you&apos;ve seen the shape of the answer, refine it per supplier
+          and add payment fees and shipping cost in{" "}
           <s-link href="/app/settings">cost settings</s-link>.
         </s-text>
       </s-paragraph>
@@ -229,7 +239,10 @@ function CostEstimatePrompt({ hasCostData }: { hasCostData: boolean }) {
   );
 }
 
-const MONTH_LABEL = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+const MONTH_LABEL = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  timeZone: "UTC",
+});
 
 function monthName(key: string) {
   const [year, month] = key.split("-").map(Number);
@@ -254,14 +267,17 @@ function TrendPanel({
     return (
       <s-paragraph>
         <s-text tone="neutral">
-          A trend needs at least two months of orders. Keep the app installed and this
-          fills in.
+          A trend needs at least two months of orders. Keep the app installed
+          and this fills in.
         </s-text>
       </s-paragraph>
     );
   }
 
-  const peak = Math.max(...months.map((m) => Math.abs(m.contributionMargin)), 1);
+  const peak = Math.max(
+    ...months.map((m) => Math.abs(m.contributionMargin)),
+    1,
+  );
 
   // Only complete months are compared. The window starts and ends mid-month, so
   // holding a part-month against a whole one always reads as a collapse — an alarm
@@ -270,19 +286,22 @@ function TrendPanel({
   const latest = complete.length >= 2 ? complete[complete.length - 1] : null;
   const previous = complete.length >= 2 ? complete[complete.length - 2] : null;
   const change =
-    latest && previous ? latest.contributionMargin - previous.contributionMargin : null;
+    latest && previous
+      ? latest.contributionMargin - previous.contributionMargin
+      : null;
 
   return (
     <>
       <p className="pk-panel-lead">
         {change == null || !latest || !previous ? (
           <s-text tone="neutral">
-            Not enough whole months yet to compare. The months below include partial
-            ones at each end.
+            Not enough whole months yet to compare. The months below include
+            partial ones at each end.
           </s-text>
         ) : change === 0 ? (
           <>
-            {monthName(latest.month)} held level against {monthName(previous.month)}.
+            {monthName(latest.month)} held level against{" "}
+            {monthName(previous.month)}.
           </>
         ) : (
           <>
@@ -319,7 +338,9 @@ function TrendPanel({
           );
         })}
       </ol>
-      <p className="pk-panel-note">* Partial month — the reporting window starts and ends mid-month.</p>
+      <p className="pk-panel-note">
+        * Partial month — the reporting window starts and ends mid-month.
+      </p>
     </>
   );
 }
@@ -337,8 +358,8 @@ function CoveragePanel({
   return (
     <>
       <p className="pk-panel-lead">
-        <strong>{Math.round(coverage.looseShare * 100)}%</strong> of your revenue has a
-        cost that&apos;s a guess.
+        <strong>{Math.round(coverage.looseShare * 100)}%</strong> of your
+        revenue has a cost that&apos;s a guess.
       </p>
       <ul className="pk-coverage">
         {coverage.bands.map((band) => (
@@ -346,14 +367,17 @@ function CoveragePanel({
             <span className={`pk-tier-dot pk-tier-${band.tier}`} />
             <span className="pk-coverage-label">{TIER_LABELS[band.tier]}</span>
             <span className="pk-coverage-count">{band.products}</span>
-            <span className="pk-coverage-revenue">{formatMoney(band.revenue)}</span>
+            <span className="pk-coverage-revenue">
+              {formatMoney(band.revenue)}
+            </span>
           </li>
         ))}
       </ul>
       {coverage.nextStep && (
         <p className="pk-panel-note">
-          Biggest single improvement: set a cost for <strong>{coverage.nextStep.vendor}</strong>{" "}
-          — {coverage.nextStep.products}{" "}
+          Biggest single improvement: set a cost for{" "}
+          <strong>{coverage.nextStep.vendor}</strong> —{" "}
+          {coverage.nextStep.products}{" "}
           {coverage.nextStep.products === 1 ? "product" : "products"} carrying{" "}
           {formatMoney(coverage.nextStep.revenue)} of revenue.
         </p>
@@ -376,7 +400,9 @@ function Kpi({
 }) {
   return (
     <div className="pk-kpi">
-      <span className={`pk-kpi-value${tone === "loss" ? " pk-down" : ""}`}>{value}</span>
+      <span className={`pk-kpi-value${tone === "loss" ? " pk-down" : ""}`}>
+        {value}
+      </span>
       <span className="pk-kpi-label">{label}</span>
       {detail && <span className="pk-kpi-detail">{detail}</span>}
     </div>
@@ -390,7 +416,12 @@ function RankedProducts({
   onOpen,
   emptyText,
 }: {
-  rows: Array<{ productId: string; title: string; contributionMargin: number; note?: string }>;
+  rows: Array<{
+    productId: string;
+    title: string;
+    contributionMargin: number;
+    note?: string;
+  }>;
   formatMoney: (cents: number) => string;
   onOpen: (title: string) => void;
   emptyText: string;
@@ -406,7 +437,11 @@ function RankedProducts({
     <ul className="pk-ranked">
       {rows.map((row) => (
         <li className="pk-ranked-row" key={row.productId}>
-          <button type="button" className="pk-case-name" onClick={() => onOpen(row.title)}>
+          <button
+            type="button"
+            className="pk-case-name"
+            onClick={() => onOpen(row.title)}
+          >
             {row.title}
           </button>
           <span
@@ -436,7 +471,10 @@ function VendorWidget({
       </p>
     );
   }
-  const peak = Math.max(...vendors.map((v) => Math.abs(v.contributionMargin)), 1);
+  const peak = Math.max(
+    ...vendors.map((v) => Math.abs(v.contributionMargin)),
+    1,
+  );
 
   return (
     <ul className="pk-vendors">
@@ -451,7 +489,9 @@ function VendorWidget({
             <span className="pk-vendor-track">
               <i
                 className={`pk-vendor-bar${loss ? " pk-vendor-bar-loss" : ""}`}
-                style={{ width: `${(Math.abs(vendor.contributionMargin) / peak) * 100}%` }}
+                style={{
+                  width: `${(Math.abs(vendor.contributionMargin) / peak) * 100}%`,
+                }}
               />
             </span>
             <span className={`pk-vendor-value${loss ? " pk-down" : ""}`}>
@@ -521,7 +561,10 @@ export default function Index() {
                 : `${(marginPercent * 100).toFixed(1)}% of revenue`
             }
           />
-          <Kpi label="Revenue after discounts" value={formatMoney(totalRevenue)} />
+          <Kpi
+            label="Revenue after discounts"
+            value={formatMoney(totalRevenue)}
+          />
           <Kpi
             label="Products losing money"
             value={String(hero.losers.length)}
@@ -600,7 +643,9 @@ export default function Index() {
                 <span>Discounts</span>
                 <span>{formatMoney(erosion.totalDiscounts)}</span>
                 <span className="pk-erosion-detail">
-                  {erosion.topCode ? `${erosion.topCode.label} is the largest` : "No codes used"}
+                  {erosion.topCode
+                    ? `${erosion.topCode.label} is the largest`
+                    : "No codes used"}
                 </span>
               </li>
               <li>
@@ -617,7 +662,9 @@ export default function Index() {
                 </span>
               </li>
             </ul>
-            <s-button onClick={() => navigate("/app/leaks")}>Break this down</s-button>
+            <s-button onClick={() => navigate("/app/leaks")}>
+              Break this down
+            </s-button>
           </section>
 
           <section className="pk-widget pk-widget-wide">
@@ -634,10 +681,10 @@ export default function Index() {
         <s-section heading="Check these costs">
           <s-banner tone="warning">
             {hero.suspect.length}{" "}
-            {hero.suspect.length === 1 ? "product costs" : "products cost"} more than
-            three times what they sell for. That is usually a decimal point in the
-            wrong place rather than a real loss, so they are kept out of the figures
-            above.
+            {hero.suspect.length === 1 ? "product costs" : "products cost"} more
+            than three times what they sell for. That is usually a decimal point
+            in the wrong place rather than a real loss, so they are kept out of
+            the figures above.
           </s-banner>
           <ul className="pk-suspects">
             {hero.suspect.map((row) => (
@@ -649,8 +696,8 @@ export default function Index() {
                 >
                   {row.title}
                 </button>{" "}
-                — cost {formatMoney(row.cogs)} against {formatMoney(row.revenue)} of
-                revenue
+                — cost {formatMoney(row.cogs)} against{" "}
+                {formatMoney(row.revenue)} of revenue
               </li>
             ))}
           </ul>
@@ -663,14 +710,6 @@ export default function Index() {
 }
 
 const PK_STYLES = `
-  .pk-help {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem 1.25rem;
-    margin-top: 0.75rem;
-  }
-
   .pk-cases {
     --pk-cost-1: #212B1B;
     --pk-cost-2: #47573E;
