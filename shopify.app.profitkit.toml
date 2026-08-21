@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "5243e677cda81e9c8dfa6e51b776a966"
-name = "profitkit"
+name = "Profitkit"
 application_url = "https://profitkit-app-production-b46d.up.railway.app"
 embedded = true
 

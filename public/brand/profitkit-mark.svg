@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Profitkit">
+  <!--
+    Source of truth for the Profitkit mark. Raster sizes are generated from this
+    file by scripts/build-brand.mjs — never hand-edit the PNGs.
+
+    The glyph is the product's thesis in two strokes: a flat revenue rule, and the
+    margin line beneath it ending well below where it started.
+
+    Tuned for 32px, not for 512px. The first version had a three-kink polyline and
+    2.6px strokes inside a 54%-wide safe area; at nav size the two lines merged
+    into a smudge. This one spans 67% of the box, carries 3.6px strokes, keeps a
+    5.5-unit gap so the strokes can never touch, and has a single kink — enough to
+    read as a chart, few enough to survive being 32 pixels wide.
+
+    Square with no corner radius, per design-system MASTER.md. Shopify masks the
+    icon on some surfaces; at this span a 14% corner radius clips nothing.
+  -->
+  <rect width="48" height="48" fill="#0E1116"/>
+
+  <!-- Revenue: flat, unbothered, the number everyone already has. -->
+  <path d="M8 17h32" stroke="#F5F7FA" stroke-width="3.6" stroke-linecap="butt"/>
+
+  <!-- Margin: same period, one turn, ending far below the rule. -->
+  <path
+    d="M8 22.5 L22 27 L40 36.5"
+    fill="none"
+    stroke="#D41820"
+    stroke-width="3.6"
+    stroke-linejoin="miter"
+    stroke-linecap="butt"
+  />
+</svg>

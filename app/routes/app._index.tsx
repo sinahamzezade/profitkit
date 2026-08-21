@@ -12,6 +12,7 @@ import { authenticate } from "../shopify.server";
 import { hasAnyCogsConfigured } from "../costs/cogs";
 import { resolveTierForShop, resolveTierLimits } from "../billing/tier";
 import { setGlobalCogsPercent } from "../costs/repository";
+import { GUIDE_URL, hasVideo, VIDEO_URL } from "../docs";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
 import {
   aggregateByMonth,
@@ -145,6 +146,39 @@ function makeMoneyFormatter(currency: string) {
 
 function productHref(title: string) {
   return `/app/products?q=${encodeURIComponent(title)}`;
+}
+
+/**
+ * Where to learn the app. Sits above the numbers rather than inside them, because
+ * a merchant who is lost is not reading a table — and stays permanently rather
+ * than being dismissible, since the questions it answers ("why is this an
+ * estimate", "how do I get real costs in") recur long after install.
+ *
+ * The video link renders only when `VIDEO_URL` is set. See app/docs.ts.
+ */
+function HowToUse() {
+  return (
+    <s-section heading="New here?">
+      <s-paragraph>
+        Profitkit works out what each product actually leaves behind after cost of
+        goods, payment fees, shipping and refunds. The three-minute version: set one
+        cost estimate below, read the ranking, then sharpen the costs that matter.
+      </s-paragraph>
+      <div className="pk-help">
+        <s-link href={GUIDE_URL} target="_blank">
+          Read the walkthrough
+        </s-link>
+        {hasVideo && (
+          <s-link href={VIDEO_URL} target="_blank">
+            Watch the video
+          </s-link>
+        )}
+        <s-text tone="neutral">
+          Opens on profitkit.app in a new tab.
+        </s-text>
+      </div>
+    </s-section>
+  );
 }
 
 /**
@@ -442,6 +476,7 @@ export default function Index() {
             Once this store has orders, your margin shows up here.
           </s-banner>
         </s-section>
+        <HowToUse />
       </s-page>
     );
   }
@@ -470,6 +505,7 @@ export default function Index() {
         See every product
       </s-button>
 
+      <HowToUse />
       {!hasCostData && <CostEstimatePrompt hasCostData={false} />}
 
       {/* KPI strip. Four figures that frame everything below — no sparklines, no
@@ -627,6 +663,14 @@ export default function Index() {
 }
 
 const PK_STYLES = `
+  .pk-help {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 1.25rem;
+    margin-top: 0.75rem;
+  }
+
   .pk-cases {
     --pk-cost-1: #212B1B;
     --pk-cost-2: #47573E;
