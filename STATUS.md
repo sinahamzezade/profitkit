@@ -31,15 +31,15 @@ has never been submitted. See `VERIFICATION.md`.
 | Hosting | Railway (Profitkit's Projects, project 22490a45): Postgres + profitkit-app from the Dockerfile, migrations applied on boot |
 | Deployed config | App version profitkit-7 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain |
 | Billing | `billing.check` wired; $29 recurring plan registered |
-| Install | `afterAuth` claims a once-per-shop backfill of the 60-day window; failure releases the claim so a later auth retries |
+| Install | Verified on a live store: 17 products, 9 orders backfilled. Claimed once per shop from `afterAuth` *and* the app loader, since token-exchange sessions never call `afterAuth` |
 
-196 tests. Lint and typecheck clean.
+205 tests. Lint and typecheck clean.
 
 ## Commands
 
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
-npm test               # 196 unit tests
+npm test               # 205 unit tests
 npm run seed           # regenerate the synthetic dataset (deterministic)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back
@@ -51,8 +51,10 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 
 ## Known gaps, in the order they'd hurt
 
-1. **Nothing verified against a real store.** Every Shopify-facing claim rests on
-   mocks and one quickstart dev store. `VERIFICATION.md` is the checklist.
+1. **Only partly verified against a real store.** Install, backfill, the 60-day
+   window, webhook registration and one live webhook delivery are now confirmed
+   (`VERIFICATION.md`). Order/refund/product webhook *delivery*, pagination past 50
+   orders, and field fill rates on a store with real trading history are not.
 2. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
    Fine for the target merchant, wrong for a large one.
 3. **Collection-level COGS never fires.** Logic and tests exist; collection
@@ -69,6 +71,10 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 
 ## Decisions worth not re-litigating
 
+- **An unknown shipping cost drops the shipping term, rather than defaulting to 0.**
+  `cost − charged` with cost defaulting to 0 made every shipping charge a gain and
+  reported margin above 100% of revenue. A merchant entering 0 explicitly still
+  counts the gain — that is a claim about their business, not missing information.
 - **The service pins `PORT=3000`.** Railway injects `PORT=8080`, react-router-serve
   honoured it, and the generated domain targets 3000 — so the app served fine while
   every request 502ed. Pinning it keeps the Dockerfile's `EXPOSE`, the domain target

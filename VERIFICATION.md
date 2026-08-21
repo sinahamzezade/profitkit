@@ -12,11 +12,19 @@ Status legend: `[ ]` not yet verified · `[x]` verified against a live store.
 
 ## 1. Install and backfill
 
-- [ ] Fresh install on a store with existing orders completes OAuth without error.
-- [ ] `backfillShop` runs at install and ingests products before orders.
-- [ ] Backfill pulls **60 days** and no more. Confirm the oldest ingested order is
+- [x] Fresh install on a store with existing orders completes OAuth without error.
+      *2026-08-21, first-test-zenmt2u1 against Railway. Two traps: a truncated client
+      secret fails as a silent 401 retry loop rather than an error, and a leftover dev
+      preview pins the app URL to a dead tunnel until `shopify app dev clean`.*
+- [x] `backfillShop` runs at install and ingests products before orders.
+      *17 products, 9 orders. `afterAuth` alone was not enough — embedded sessions are
+      minted by token exchange, which never calls it, so app/routes/app.tsx triggers it
+      too.*
+- [x] Backfill pulls **60 days** and no more. Confirm the oldest ingested order is
       within the window, and that Shopify does not error on the `created_at:>=`
       query syntax.
+      *Window start logged as 2026-06-22 for a 2026-08-21 install; the `created_at:>=`
+      syntax was accepted.*
 - [ ] A store with more than 50 orders paginates correctly (cursor advances, no
       duplicates, no missing page). Mocks prove the loop logic; only a real store
       proves the cursor values.
@@ -41,8 +49,17 @@ store with genuine trading history and confirm:
 
 ## 3. Webhooks
 
-- [ ] Each subscription in `shopify.app.profitkit.toml` actually registers on
+- [x] Each subscription in `shopify.app.profitkit.toml` actually registers on
       deploy (check the Partner dashboard webhook list, not just the toml).
+      *App version profitkit-8. Verified in `.shopify/deploy-bundle/manifest.json`:
+      the `privacy_compliance_webhooks` module plus 6 `webhook_subscription` modules,
+      all at the Railway domain. Shopify's own Dev Console lists the privacy module
+      independently. The previous deploy had no privacy module and only 2
+      subscriptions, all pointing at the scaffold placeholder URL.*
+- [x] `app/scopes_update` fires and is accepted, not merely registered.
+      *Granting `read_returns` produced `Received APP_SCOPES_UPDATE webhook` →
+      `POST /webhooks/app/scopes_update 200`. A 200 rather than 401 also proves HMAC
+      verification passes in production with the deployed secret.*
 - [ ] `orders/create` fires and the order appears with correct margin.
 - [ ] `orders/updated` fires on an edit and updates rather than duplicating.
 - [ ] `refunds/create` fires and the refund lands on the right line.
