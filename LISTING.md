@@ -57,11 +57,33 @@ Shopify's API doesn't expose what shipping actually cost you, and only reports
 payment fees for Shopify Payments. Profitkit models those instead of pretending
 otherwise — and tells you which figures are modelled.
 
+**It never sees your customers.**
+
+Profitkit reads the money on an order, not the person who placed it. Customer
+names, email addresses, phone numbers and postal addresses are never requested
+from Shopify and never stored — and that isn't a promise, it's a test: the suite
+fails if a customer-identifying field is ever added to the database schema.
+
+Read-only, four permissions, no write access of any kind. It cannot change
+anything in your store.
+
+This is also why Profitkit doesn't connect to Meta, Google or TikTok. Attributing
+profit to an ad campaign means tracking which shopper came from which ad, and
+that requires exactly the customer-level data above. Ad spend is a real cost, and
+a real omission — Profitkit measures the costs sitting inside your orders, and
+leaves your shoppers out of it.
+
 ## Pricing
 
-**Free** — Product-level margin for the last 90 days. Complete, not crippled.
+**Free** — Every product's margin for the last 90 days. Complete, not crippled:
+the same engine, the same cause attribution, all three views, no row limits.
 
-**Pro, $29/month** — Full history, and an accountant-ready CSV export.
+**Pro, $29/month** — **Your history stops expiring.** Shopify's API only hands
+over 60 days of orders when you install; from that day on, Profitkit keeps every
+order it sees. On Free you always see the most recent 90 days and older months
+fall off the back. On Pro nothing falls off — month six shows you six months,
+month eighteen shows eighteen, and seasonal comparison becomes possible for the
+first time. Includes an accountant-ready CSV export of the whole history.
 
 ## Feature bullets
 
@@ -71,6 +93,9 @@ otherwise — and tells you which figures are modelled.
 - Payment fee modelling for gateways Shopify doesn't report
 - Discount and refund erosion by code and reason
 - Every estimated figure clearly labelled
+- No customer data: names, emails, phone numbers and addresses are never
+  requested or stored, enforced by an automated test
+- Read-only. Four permissions, no write access to your store
 
 ## Screenshots (in order)
 
@@ -111,6 +136,17 @@ Written down so nobody adds them later without checking:
   word was the pitch.
 - **Refund reasons for every refund.** Only refunds processed through Shopify's
   Returns flow carry a reason; refunds issued from the order page carry none.
+- **"No protected customer data."** Tempting next to the privacy bullet, and
+  false. Shopify classifies *order data itself* as protected customer data, and
+  Profitkit requests access to it — that is the whole app. The true and narrower
+  claim is the one made above: no protected customer *fields* — name, email,
+  phone, address — are requested or stored. Do not widen it. `PRIVACY.md` states
+  the distinction the same way, and a reviewer will read both.
+- **"Includes ad spend"**, in any form. There is no ad-platform integration and
+  there deliberately isn't going to be one while the privacy claim stands, since
+  campaign attribution needs per-shopper tracking. If that trade is ever
+  revisited, the privacy bullet and the paragraph above both have to go — they are
+  one decision, not two.
 
 ## Before submission
 
