@@ -8,8 +8,12 @@ and ingestion, the three-rung cost ladder, all three v1 views, tier gating,
 accountant export, and the Shopify adapter with webhooks, privacy endpoints and
 billing.
 
-**Not done:** nothing has been verified against a real merchant store, and the app
-has never been submitted. See `VERIFICATION.md`.
+**Live:** deployed on Railway and installed on a dev store. Install, backfill,
+webhook registration and delivery, and the three mandatory privacy webhooks are
+verified against that store — 14 of 32 `VERIFICATION.md` items, 2 partial.
+
+**Not done:** billing has never been exercised, no store with real trading history
+has been seen, and the app has never been submitted.
 
 ---
 
@@ -29,7 +33,7 @@ has never been submitted. See `VERIFICATION.md`.
 | Adapter | Mock-tested against recorded shapes, plus live `orders/create` and `orders/updated` delivery on a real store |
 | Privacy | Three mandatory webhooks verified live (200 with real HMAC); shop/redact deletion proved by row counts and scoped to one shop; schema asserted free of customer identity |
 | Hosting | Railway (Profitkit's Projects, project 22490a45): Postgres + profitkit-app from the Dockerfile, migrations applied on boot |
-| Deployed config | App version profitkit-7 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain |
+| Deployed config | App version profitkit-8 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain; scopes include read_returns |
 | Billing | `billing.check` wired; $29 recurring plan registered |
 | Install | Verified on a live store: 17 products, 9 orders backfilled. Claimed once per shop from `afterAuth` *and* the app loader, since token-exchange sessions never call `afterAuth` |
 
@@ -51,23 +55,30 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 
 ## Known gaps, in the order they'd hurt
 
-1. **Only partly verified against a real store.** Install, backfill, the 60-day
+1. **A duplicate Railway project is still running in an unrelated account.**
+   Project `47cf1fc3`, under a personal Railway account that is *not* the Profitkit
+   one — the first provisioning landed there before the accounts were untangled. It
+   still runs a Postgres and an app service, consuming that account's credit, and it
+   holds the un-suffixed domain `profitkit-app-production.up.railway.app`, which is
+   why the live app answers on `-b46d`. Delete it from that account's own dashboard;
+   nothing here depends on it. See `CLAUDE.md` for which account production uses.
+2. **Only partly verified against a real store.** Install, backfill, the 60-day
    window, webhook registration and one live webhook delivery are now confirmed
    (`VERIFICATION.md`: 14 of 32 checked, 2 partial). Refund webhook delivery,
    pagination past 50 orders, billing, and field fill rates on a store with real
    trading history are not.
-2. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
+3. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
    Fine for the target merchant, wrong for a large one.
-3. **Collection-level COGS never fires.** Logic and tests exist; collection
+4. **Collection-level COGS never fires.** Logic and tests exist; collection
    membership isn't ingested, so vendor is the only working group rung.
-4. **Exact per-product costs are CLI-only.** `setVariantCogsCents` is reached
+5. **Exact per-product costs are CLI-only.** `setVariantCogsCents` is reached
    solely by `npm run import-cogs`. A merchant can set a supplier-level percentage in
    cost settings, but has no way to upload a real cost sheet from inside the app.
-5. **Listing assets not produced.** Screenshots and the demo video are manual;
+6. **Listing assets not produced.** Screenshots and the demo video are manual;
    `LISTING.md` says which four screenshots and in what order.
-6. **Support email and privacy URL not provisioned.** `PRIVACY.md` must be
+7. **Support email and privacy URL not provisioned.** `PRIVACY.md` must be
    published at a public URL before submission.
-7. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
+8. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
    reserved pseudo-gateway name to avoid a migration for one integer.
 
 ## Decisions worth not re-litigating
