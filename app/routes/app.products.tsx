@@ -8,11 +8,8 @@ import { authenticate } from "../shopify.server";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
 import { hasAnyCogsConfigured } from "../costs/cogs";
 import { resolveTierForShop, resolveTierLimits } from "../billing/tier";
-import {
-  buildProductMarginReport,
-  type ProductMarginRow,
-  type SortKey,
-} from "../reports/productMargin";
+import { type ProductMarginRow, type SortKey } from "../reports/productMargin";
+import { buildProductMarginReport } from "../reports/productMargin.server";
 
 const PAGE_SIZE = 50;
 

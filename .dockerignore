@@ -1,3 +1,32 @@
 .cache
 build
 node_modules
+
+# Secrets. The Dockerfile does `COPY . .`, so anything not listed here is baked into
+# the image layer and travels with it — including to anyone who can pull the image.
+.env
+.env.*
+
+# Local state that must not become production state: the Shopify CLI's linked
+# app/store for this machine, and the local git history.
+.shopify
+.git
+.gitignore
+
+# Local databases and regenerable fixtures
+prisma/dev.sqlite
+prisma/dev.sqlite-journal
+database.sqlite
+app/seed/fixtures
+
+# Editor and assistant caches
+.cursor
+.claude
+.gemini
+.react-router
+.DS_Store
+
+# Tests and docs don't run in production and only enlarge the image
+**/*.test.ts
+**/*.test.tsx
+*.md

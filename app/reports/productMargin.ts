@@ -1,4 +1,4 @@
-import prisma from "../db.server";
+import type { Prisma } from "@prisma/client";
 import { resolveCogs } from "../costs/cogs";
 import type { CogsSource } from "../costs/types";
 import { resolveFee, resolveShippingCost } from "../costs/fees";
@@ -67,28 +67,26 @@ export interface ProductMarginReport {
 }
 
 /**
- * Orders with everything margin needs, in one query rather than one per order.
- * The naive shape here was 500 orders × 2 queries; at a 1,000-product catalog
+ * Everything margin needs from an order, fetched in one query rather than one per
+ * order. The naive shape here was 500 orders × 2 queries; at a 1,000-product catalog
  * that's what makes the table choke, not the arithmetic.
+ *
+ * The shape lives here, but the query that uses it is in productMargin.server.ts.
+ * This module is reachable from client code — a component needs the labels and the
+ * row type — so it must not import `db.server`. It didn't used to matter: the dev
+ * server tolerates it, and the production build is where it becomes a hard error.
+ * Prisma's generated *types* are safe to import; only the client instance is not.
  */
-export async function loadOrdersForMargin(shopId: string, since?: Date) {
-  return prisma.order.findMany({
-    where: {
-      shopId,
-      ...(since ? { createdAtShopify: { gte: since } } : {}),
-    },
+export const MARGIN_ORDER_INCLUDE = {
+  lines: {
     include: {
-      lines: {
-        include: {
-          refunds: true,
-          variant: { include: { product: true } },
-        },
-      },
+      refunds: true,
+      variant: { include: { product: true } },
     },
-  });
-}
+  },
+} as const satisfies Prisma.OrderInclude;
 
-export type LoadedOrder = Awaited<ReturnType<typeof loadOrdersForMargin>>[number];
+export type LoadedOrder = Prisma.OrderGetPayload<{ include: typeof MARGIN_ORDER_INCLUDE }>;
 
 /** Maps a loaded order to domain inputs, resolving costs through the ladder. */
 export function toDomainInputs(
@@ -418,13 +416,3 @@ export function applyReportOptions(
   };
 }
 
-export async function buildProductMarginReport(
-  shopId: string,
-  config: ShopCostConfig,
-  options: ReportOptions = {},
-  since?: Date,
-): Promise<ProductMarginReport> {
-  const orders = await loadOrdersForMargin(shopId, since);
-  const rows = aggregateByProduct(orders, config);
-  return applyReportOptions(rows, options);
-}

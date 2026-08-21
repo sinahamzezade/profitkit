@@ -7,7 +7,7 @@ import { authenticate } from "../shopify.server";
 import { resolveTierForShop, resolveTierLimits } from "../billing/tier";
 import { PRO_PLAN } from "../billing/plan";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
-import { loadOrdersForMargin } from "../reports/productMargin";
+import { loadOrdersForMargin } from "../reports/productMargin.server";
 import {
   buildErosionReport,
   NO_REASON_RECORDED,

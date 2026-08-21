@@ -4,7 +4,7 @@ import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { resolveTierForShop, resolveTierLimits, TierRequiredError } from "../billing/tier";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
-import { buildProductMarginReport } from "../reports/productMargin";
+import { buildProductMarginReport } from "../reports/productMargin.server";
 import { accountantCsvFilename, buildAccountantCsv } from "../reports/accountantExport";
 
 /**

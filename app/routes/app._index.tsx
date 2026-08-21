@@ -18,11 +18,11 @@ import {
   aggregateByProduct,
   aggregateByVendor,
   applyReportOptions,
-  loadOrdersForMargin,
   type MarginMonth,
   type ProductMarginRow,
   type VendorMargin,
 } from "../reports/productMargin";
+import { loadOrdersForMargin } from "../reports/productMargin.server";
 import { buildErosionReport, NO_REASON_RECORDED } from "../reports/erosion";
 import {
   buildCostCoverage,

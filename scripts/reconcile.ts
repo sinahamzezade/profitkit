@@ -1,7 +1,10 @@
 import prisma from "../app/db.server";
 import { loadShopCostConfig } from "../app/ingestion/dbToDomain";
 import { resolveCogs } from "../app/costs/cogs";
-import { buildProductMarginReport, loadOrdersForMargin } from "../app/reports/productMargin";
+import {
+  buildProductMarginReport,
+  loadOrdersForMargin,
+} from "../app/reports/productMargin.server";
 import { buildErosionReport } from "../app/reports/erosion";
 
 /**
