@@ -102,20 +102,30 @@ describe("runInstallBackfill", () => {
 });
 
 /**
- * The hook is configured in shopify.server.ts, which can't be imported here without
- * standing up the whole app. `backfillShop` sat uncalled for a long time; these
- * assertions fail if the wiring is removed again.
+ * The triggers live in shopify.server.ts and app/routes/app.tsx, neither of which can
+ * be imported here without standing up the whole app. `backfillShop` sat uncalled for
+ * a long time, and afterAuth alone turned out not to fire for token-exchange sessions;
+ * these assertions fail if either trigger is removed again.
  */
 const shopifyServerSource = readFileSync(new URL("../shopify.server.ts", import.meta.url), "utf8");
+const appRouteSource = readFileSync(new URL("../routes/app.tsx", import.meta.url), "utf8");
 
 describe("install wiring", () => {
-  it("calls the backfill from afterAuth", () => {
+  it("starts the backfill from afterAuth", () => {
     expect(shopifyServerSource).toMatch(/afterAuth/);
-    expect(shopifyServerSource).toMatch(/runInstallBackfill\(\s*admin\.graphql,\s*session\.shop/);
+    expect(shopifyServerSource).toMatch(
+      /startInstallBackfill\(\s*admin\.graphql,\s*session\.shop/,
+    );
   });
 
-  it("does not await the backfill, which would hold the install redirect open", () => {
-    expect(shopifyServerSource).toMatch(/void runInstallBackfill\(/);
-    expect(shopifyServerSource).not.toMatch(/await runInstallBackfill\(/);
+  it("also starts it from the app loader, since afterAuth misses token exchange", () => {
+    // Without this second trigger a shop whose first backfill failed stays empty
+    // forever: the claim is released but nothing ever retries it.
+    expect(appRouteSource).toMatch(/startInstallBackfill\(\s*admin\.graphql,\s*session\.shop/);
+  });
+
+  it("does not await either trigger, which would hold the response open", () => {
+    expect(shopifyServerSource).not.toMatch(/await startInstallBackfill\(/);
+    expect(appRouteSource).not.toMatch(/await startInstallBackfill\(/);
   });
 });

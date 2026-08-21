@@ -46,6 +46,32 @@ export const prismaInstallStore: InstallStore = {
   },
 };
 
+/**
+ * Fire-and-forget entry point, used by both triggers.
+ *
+ * Not awaited anywhere: the backfill pulls 60 days of orders across paginated
+ * requests, and holding either the OAuth redirect or a page render open for that
+ * long would look like a hang. `runInstallBackfill` never throws, so this cannot
+ * become an unhandled rejection; the `.catch` guards anything thrown before its own
+ * try block.
+ */
+export function startInstallBackfill(graphql: GraphqlClient, shopDomain: string): void {
+  void runInstallBackfill(graphql, shopDomain)
+    .then((result) => {
+      if (result.ran) {
+        console.log(
+          `[install] backfilled ${shopDomain}: ${result.productsIngested} products, ` +
+            `${result.ordersIngested} orders since ${result.windowStart.toISOString()}`,
+        );
+      } else if (result.reason === "failed") {
+        console.error(`[install] backfill failed for ${shopDomain}:`, result.error);
+      }
+    })
+    .catch((error) => {
+      console.error(`[install] backfill crashed for ${shopDomain}:`, error);
+    });
+}
+
 export type InstallResult =
   | { ran: false; reason: "already-backfilled" }
   | { ran: false; reason: "failed"; error: unknown }

@@ -7,7 +7,7 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 import { BillingInterval } from "@shopify/shopify-api";
-import { runInstallBackfill } from "./shopify/install";
+import { startInstallBackfill } from "./shopify/install";
 
 const shopify = shopifyApp({
   // Written out literally rather than spread from PRO_PLAN: the billing config is a
@@ -39,33 +39,17 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
   hooks: {
     afterAuth: async ({ session, admin }) => {
-      // Not awaited. The backfill pulls 60 days of orders across paginated
-      // requests; awaiting it here would hold the install redirect open for as
-      // long as that takes and leave the merchant looking at a hung page. The
-      // dashboard already has an empty state, so it fills in as this progresses.
-      //
-      // `runInstallBackfill` never throws, so this cannot become an unhandled
-      // rejection that takes the server down mid-install. The `.catch` is a
-      // belt-and-braces guard for anything thrown before its own try block.
+      // The fast path, not the only one. This fires on the OAuth authorization-code
+      // flow, but an embedded app mints most of its sessions through token exchange,
+      // which never runs afterAuth — so app/routes/app.tsx also calls this on load.
+      // Both go through the same atomic claim, so whichever arrives first wins and
+      // the other does nothing.
       //
       // Webhook subscriptions are declared in shopify.app.profitkit.toml and
       // registered by `shopify app deploy`. That makes them app-specific, so
       // `registerWebhooks` — which exists for shop-specific subscriptions — would
       // add nothing here.
-      void runInstallBackfill(admin.graphql, session.shop)
-        .then((result) => {
-          if (result.ran) {
-            console.log(
-              `[install] backfilled ${session.shop}: ${result.productsIngested} products, ` +
-                `${result.ordersIngested} orders since ${result.windowStart.toISOString()}`,
-            );
-          } else if (result.reason === "failed") {
-            console.error(`[install] backfill failed for ${session.shop}:`, result.error);
-          }
-        })
-        .catch((error) => {
-          console.error(`[install] backfill crashed for ${session.shop}:`, error);
-        });
+      startInstallBackfill(admin.graphql, session.shop);
     },
   },
   future: {

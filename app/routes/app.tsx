@@ -4,9 +4,20 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import { startInstallBackfill } from "../shopify/install";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
+
+  // The safety net for the install backfill. `afterAuth` is the fast path, but it
+  // only runs on the OAuth authorization-code flow — an embedded app mints most of
+  // its sessions through token exchange, which does not call it. A first backfill
+  // that failed also releases its claim so it can be retried, and without a trigger
+  // here nothing ever would: the shop would sit empty forever.
+  //
+  // Safe to call on every page load. The claim inside is a conditional UPDATE, so
+  // once the backfill has succeeded this costs one indexed query and does nothing.
+  startInstallBackfill(admin.graphql, session.shop);
 
   // eslint-disable-next-line no-undef
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
