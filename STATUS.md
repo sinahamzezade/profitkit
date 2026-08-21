@@ -27,7 +27,9 @@ has never been submitted. See `VERIFICATION.md`.
 | Discounts & refunds | Monthly erosion by code and reason; totals tie back to raw sums |
 | Tier gating | Applied as a query bound before any read; export returns 402 on free |
 | Adapter | Mock-tested against recorded shapes |
-| Privacy | Three mandatory webhooks; schema asserted free of customer identity |
+| Privacy | Three mandatory webhooks registered and live; schema asserted free of customer identity |
+| Hosting | Railway (Profitkit's Projects, project 22490a45): Postgres + profitkit-app from the Dockerfile, migrations applied on boot |
+| Deployed config | App version profitkit-7 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain |
 | Billing | `billing.check` wired; $29 recurring plan registered |
 | Install | `afterAuth` claims a once-per-shop backfill of the 60-day window; failure releases the claim so a later auth retries |
 
@@ -67,6 +69,10 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 
 ## Decisions worth not re-litigating
 
+- **The service pins `PORT=3000`.** Railway injects `PORT=8080`, react-router-serve
+  honoured it, and the generated domain targets 3000 — so the app served fine while
+  every request 502ed. Pinning it keeps the Dockerfile's `EXPOSE`, the domain target
+  and the listener in agreement.
 - **The install backfill is not awaited.** Holding the OAuth redirect open for a
   60-day paginated pull would look like a hung install. It runs after the redirect
   and the dashboard fills in; `runInstallBackfill` never throws, so it cannot take
