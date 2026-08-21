@@ -2,7 +2,7 @@
 
 client_id = "5243e677cda81e9c8dfa6e51b776a966"
 name = "profitkit"
-application_url = "https://profitkit-app-production.up.railway.app"
+application_url = "https://profitkit-app-production-b46d.up.railway.app"
 embedded = true
 
 [build]
@@ -49,7 +49,7 @@ scopes = "read_orders,read_products,read_inventory"
 
 [auth]
 redirect_urls = [
-  "https://profitkit-app-production.up.railway.app/auth/callback",
-  "https://profitkit-app-production.up.railway.app/auth/shopify/callback",
-  "https://profitkit-app-production.up.railway.app/api/auth/callback",
+  "https://profitkit-app-production-b46d.up.railway.app/auth/callback",
+  "https://profitkit-app-production-b46d.up.railway.app/auth/shopify/callback",
+  "https://profitkit-app-production-b46d.up.railway.app/api/auth/callback",
 ]
