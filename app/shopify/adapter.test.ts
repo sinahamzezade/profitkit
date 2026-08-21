@@ -12,6 +12,7 @@ import {
   ShopifyGraphqlError,
   type GraphqlClient,
 } from "./adapter";
+import { REFUND_LIMIT } from "./queries";
 
 /** Builds a fake client that replays recorded response bodies in order. */
 function mockGraphql(...bodies: unknown[]): GraphqlClient & { calls: unknown[][] } {
@@ -363,5 +364,135 @@ describe("returns scope fallback", () => {
 
     expect(order?.id).toBe("gid://shopify/Order/1001");
     expect(calls).toHaveLength(2);
+  });
+});
+
+/**
+ * Per-order pagination.
+ *
+ * `Order.lineItems` is a connection, so an order with more lines than one page is
+ * completable and these tests hold it to that. Refunds and transactions are plain
+ * lists with no cursor, so the most that can be asserted there is that a full-looking
+ * array is reported rather than passed off as complete.
+ */
+describe("per-order collections", () => {
+  const lineItem = (n: number) => ({
+    id: `gid://shopify/LineItem/${n}`,
+    title: `Item ${n}`,
+    sku: `SKU-${n}`,
+    quantity: 1,
+    originalTotalSet: { shopMoney: { amount: "10.00" } },
+    discountAllocations: [],
+    variant: null,
+  });
+
+  const orderWith = (
+    nodes: ReturnType<typeof lineItem>[],
+    pageInfo: { hasNextPage: boolean; endCursor?: string },
+    extra: Record<string, unknown> = {},
+  ) => ({ ...RECORDED_ORDER, lineItems: { nodes, pageInfo }, ...extra });
+
+  const ordersBody = (order: unknown) => ({
+    data: { orders: { nodes: [order], pageInfo: { hasNextPage: false } } },
+  });
+
+  const lineItemsBody = (
+    nodes: ReturnType<typeof lineItem>[],
+    pageInfo: { hasNextPage: boolean; endCursor?: string },
+  ) => ({ data: { order: { lineItems: { nodes, pageInfo } } } });
+
+  it("fetches the rest of an order's line items when the first page is not the last", async () => {
+    // Before this, the 101st line simply did not exist as far as the app was
+    // concerned, and the order's margin was computed from a partial basket.
+    const graphql = mockGraphql(
+      ordersBody(orderWith([lineItem(1)], { hasNextPage: true, endCursor: "c1" })),
+      lineItemsBody([lineItem(2)], { hasNextPage: false }),
+    );
+
+    const orders = await fetchOrdersSince(graphql, new Date("2026-06-21"));
+
+    expect(orders[0].lineItems.nodes.map((l) => l.id)).toEqual([
+      "gid://shopify/LineItem/1",
+      "gid://shopify/LineItem/2",
+    ]);
+    // The top-up asked for the right order, from the cursor the first page ended on.
+    expect(graphql.calls[1][1]).toEqual({
+      id: "gid://shopify/Order/1001",
+      cursor: "c1",
+    });
+  });
+
+  it("follows the cursor across several pages of line items", async () => {
+    const graphql = mockGraphql(
+      ordersBody(orderWith([lineItem(1)], { hasNextPage: true, endCursor: "c1" })),
+      lineItemsBody([lineItem(2)], { hasNextPage: true, endCursor: "c2" }),
+      lineItemsBody([lineItem(3)], { hasNextPage: false }),
+    );
+
+    const orders = await fetchOrdersSince(graphql, new Date("2026-06-21"));
+
+    expect(orders[0].lineItems.nodes).toHaveLength(3);
+    // Advancing, not re-requesting the same cursor — the bug that produces
+    // duplicates and never terminates.
+    expect(graphql.calls.map((c) => (c[1] as { cursor?: string })?.cursor)).toEqual([
+      null,
+      "c1",
+      "c2",
+    ]);
+  });
+
+  it("makes no extra request when the line items already fit in one page", async () => {
+    const graphql = mockGraphql(
+      ordersBody(orderWith([lineItem(1)], { hasNextPage: false })),
+    );
+
+    await fetchOrdersSince(graphql, new Date("2026-06-21"));
+
+    expect(graphql.calls).toHaveLength(1);
+  });
+
+  it("completes line items on the webhook re-fetch path as well", async () => {
+    // A truncated re-ingest is worse than a truncated backfill: it overwrites
+    // complete rows with partial ones.
+    const graphql = mockGraphql(
+      { data: { order: orderWith([lineItem(1)], { hasNextPage: true, endCursor: "c1" }) } },
+      lineItemsBody([lineItem(2)], { hasNextPage: false }),
+    );
+
+    const order = await fetchOrder(graphql, "gid://shopify/Order/1001");
+
+    expect(order?.lineItems.nodes).toHaveLength(2);
+  });
+
+  it("reports refunds that came back exactly at the cap", async () => {
+    // Plain list, no cursor: the array being exactly full is the only signal that
+    // it may be short, so it is surfaced rather than assumed complete.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const refunds = Array.from({ length: REFUND_LIMIT }, (_, i) => ({
+      id: `gid://shopify/Refund/${i}`,
+      createdAt: "2026-08-02T00:00:00Z",
+      refundLineItems: { nodes: [] },
+    }));
+    const graphql = mockGraphql(
+      ordersBody(orderWith([lineItem(1)], { hasNextPage: false }, { refunds })),
+    );
+
+    await fetchOrdersSince(graphql, new Date("2026-06-21"));
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("#1001"));
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/refunds/));
+    warn.mockRestore();
+  });
+
+  it("stays quiet when refunds are below the cap", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const graphql = mockGraphql(
+      ordersBody(orderWith([lineItem(1)], { hasNextPage: false }, { refunds: [] })),
+    );
+
+    await fetchOrdersSince(graphql, new Date("2026-06-21"));
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

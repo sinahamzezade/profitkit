@@ -40,13 +40,13 @@ has been seen, and the app has never been submitted.
 | Charts | ApexCharts, dynamically imported so it stays out of the server bundle and its own ~279 kB gzip chunk loads after paint. Sparklines per stat card, horizontal bars for margin by month, with a screen-reader table beside the chart |
 | Product images | `imageUrl` column, set during ingestion, with a catch-up query for products ingested before the column existed |
 
-214 tests. Lint, typecheck and the production build clean.
+220 tests. Lint, typecheck and the production build clean.
 
 ## Commands
 
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
-npm test               # 214 unit tests
+npm test               # 220 unit tests
 npm run seed           # regenerate the synthetic dataset (deterministic)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back
@@ -69,8 +69,23 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
    window, webhook registration and one live webhook delivery are now confirmed
    (`VERIFICATION.md`: 15 of 32 checked, 3 partial). Billing, pagination past 50
    orders, and field fill rates on a store with real trading history are not.
-3. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
-   Fine for the target merchant, wrong for a large one.
+3. **Refunds and transactions are still capped per order, and cannot be paginated.**
+   Line items are fixed: `Order.lineItems` is a real connection, so anything past the
+   first 100 is now followed by cursor and nothing is lost — on the webhook re-fetch
+   path too, where a truncated re-ingest would have overwritten complete rows with
+   partial ones.
+
+   Refunds (20) and transactions (20) are a different shape. `Order.refunds` is
+   `[Refund!]!` and `Order.transactions` is `[OrderTransaction!]!` — plain lists whose
+   `first` argument is documented as "truncate the array result to this size". There is
+   no `pageInfo` and no cursor, so the rest cannot be requested at all. The adapter now
+   warns, naming the order, when either array comes back exactly full, which is the
+   only signal available that it may be short.
+
+   Raising those two limits is the obvious next step and was deliberately not done
+   blind: they sit inside a 50-order page, Shopify prices queries by requested size,
+   and inflating them risks trading a rare truncation for a backfill that fails
+   outright on cost. That wants measuring against a real store.
 4. **Collection-level COGS never fires.** Logic and tests exist; collection
    membership isn't ingested, so vendor is the only working group rung.
 5. **Exact per-product costs are CLI-only.** `setVariantCogsCents` is reached

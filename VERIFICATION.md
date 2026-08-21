@@ -29,10 +29,20 @@ Status legend: `[ ]` not yet verified · `[x]` verified against a live store ·
 - [ ] A store with more than 50 orders paginates correctly (cursor advances, no
       duplicates, no missing page). Mocks prove the loop logic; only a real store
       proves the cursor values.
-- [ ] A store with more than 100 line items on one order — `lineItems(first: 100)`
-      silently truncates beyond that. **Known gap:** line items are not paginated
-      per order.
-- [ ] A store with more than 20 refunds on one order — same truncation risk.
+- [ ] A store with more than 100 line items on one order. **No longer a silent
+      truncation:** `Order.lineItems` is a connection, and the adapter now follows the
+      cursor per order until it runs out, on both the backfill and the webhook
+      re-fetch. Covered by unit tests that fail without it — including that the cursor
+      advances rather than repeating, which is the bug that yields duplicates and never
+      terminates. Still wants a real order with more than 100 lines, because only a
+      live store proves Shopify's cursor values behave as the mocks assume.
+- [ ] A store with more than 20 refunds on one order. **Cannot be fixed the same
+      way:** `Order.refunds` is `[Refund!]!`, a plain list whose `first` truncates,
+      with no cursor to request the remainder. The adapter warns, naming the order,
+      when the array comes back exactly full. Verify against a real store what the
+      practical ceiling on `first` is here, and whether raising it pushes the 50-order
+      page over Shopify's query cost limit — that is the reason it was not simply
+      raised. Same applies to `transactions`.
 
 ## 2. Field availability on a real merchant store
 
@@ -201,7 +211,9 @@ signing path — not a hand-rolled request.
   and every other gateway, modelled rules are the only path — not a fallback.
 - **Refund reasons exist only via the Returns flow.** Refunds issued from the
   order page record none.
-- **Line items and refunds are capped per order** at 100 and 20 respectively; see
+- **Refunds and transactions are capped per order** at 20 each, and the cap cannot be
+  paginated away — both are plain lists in the Admin API with no cursor. Line items are
+  no longer capped: that field is a connection and is followed to the end. See
   section 1.
 - **Collection-level COGS never fires.** The ladder supports it and it is tested,
   but collection membership is not ingested, so vendor is the only working group

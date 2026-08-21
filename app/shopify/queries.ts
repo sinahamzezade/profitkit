@@ -29,6 +29,41 @@ const RETURN_FIELDS = `
     }
 `;
 
+/** One page of line items. Reused by the order queries and the top-up query below. */
+const LINE_ITEM_FIELDS = `
+  id
+  title
+  sku
+  quantity
+  originalTotalSet { shopMoney { amount } }
+  discountAllocations { allocatedAmountSet { shopMoney { amount } } }
+  variant {
+    id
+    sku
+    price
+    inventoryItem { unitCost { amount } }
+  }
+`;
+
+/**
+ * How many of each nested collection one order page asks for.
+ *
+ * `LINE_ITEM_PAGE` is a page size, not a ceiling: `Order.lineItems` is a real
+ * connection, so anything beyond this is fetched with a cursor (see
+ * ORDER_LINE_ITEMS_QUERY) and nothing is lost.
+ *
+ * The other two are ceilings, and that is a Shopify constraint rather than a
+ * choice. `Order.refunds` is `[Refund!]!` and `Order.transactions` is
+ * `[OrderTransaction!]!` — plain lists, not connections. Their `first` argument
+ * is documented as "truncate the array result to this size", and with no
+ * `pageInfo` and no cursor there is no way to ask for the rest. The adapter
+ * therefore checks whether a returned array came back exactly full and warns,
+ * because a silently short list is the failure mode worth surfacing.
+ */
+export const LINE_ITEM_PAGE = 100;
+export const REFUND_LIMIT = 20;
+export const TRANSACTION_LIMIT = 20;
+
 /** Line item and refund selections shared by the backfill and webhook re-fetch. */
 const orderFields = (withReturns: boolean) => `
   id
@@ -43,23 +78,13 @@ const orderFields = (withReturns: boolean) => `
       ... on DiscountCodeApplication { code }
     }
   }
-  lineItems(first: 100) {
+  lineItems(first: ${LINE_ITEM_PAGE}) {
     nodes {
-      id
-      title
-      sku
-      quantity
-      originalTotalSet { shopMoney { amount } }
-      discountAllocations { allocatedAmountSet { shopMoney { amount } } }
-      variant {
-        id
-        sku
-        price
-        inventoryItem { unitCost { amount } }
-      }
+      ${LINE_ITEM_FIELDS}
     }
+    pageInfo { hasNextPage endCursor }
   }
-  refunds(first: 20) {
+  refunds(first: ${REFUND_LIMIT}) {
     id
     createdAt
     note
@@ -72,9 +97,31 @@ const orderFields = (withReturns: boolean) => `
     }
     ${withReturns ? RETURN_FIELDS : ""}
   }
-  transactions(first: 20) {
+  transactions(first: ${TRANSACTION_LIMIT}) {
     gateway
     fees { amount { amount } }
+  }
+`;
+
+/**
+ * The remaining line items for one order, after the first page.
+ *
+ * Deliberately selects nothing but line items. An order with more than
+ * `LINE_ITEM_PAGE` lines is the rare case, so the top-up should not re-fetch
+ * refunds, transactions and returns it already has — and keeping the Returns
+ * selection out of it means this query needs no scope beyond `read_orders` and
+ * cannot trip the read_returns fallback.
+ */
+export const ORDER_LINE_ITEMS_QUERY = `#graphql
+  query OrderLineItems($id: ID!, $cursor: String) {
+    order(id: $id) {
+      lineItems(first: ${LINE_ITEM_PAGE}, after: $cursor) {
+        nodes {
+          ${LINE_ITEM_FIELDS}
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
   }
 `;
 

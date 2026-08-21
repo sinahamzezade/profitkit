@@ -1,12 +1,15 @@
-import type { RawOrderNode, RawProductNode } from "../ingestion/types";
+import type { RawLineItemNode, RawOrderNode, RawProductNode } from "../ingestion/types";
 import {
   BACKFILL_ORDERS_QUERY,
   BACKFILL_ORDERS_QUERY_NO_RETURNS,
   BACKFILL_PRODUCTS_QUERY,
   ORDER_BY_ID_QUERY,
   ORDER_BY_ID_QUERY_NO_RETURNS,
+  ORDER_LINE_ITEMS_QUERY,
   PRODUCT_BY_ID_QUERY,
   PRODUCT_IMAGES_QUERY,
+  REFUND_LIMIT,
+  TRANSACTION_LIMIT,
 } from "./queries";
 
 /**
@@ -111,6 +114,82 @@ export function isReturnsAccessDenied(error: unknown): boolean {
   );
 }
 
+/**
+ * Fills in line items past the first page.
+ *
+ * `Order.lineItems` is a real connection, so an order with more lines than
+ * `LINE_ITEM_PAGE` is completable: follow the cursor until it runs out. Before
+ * this, the query asked for the first 100 and the 101st simply did not exist as
+ * far as the rest of the app was concerned — the order's revenue, cost and margin
+ * were all quietly computed from a partial basket, with nothing anywhere saying so.
+ *
+ * Only pays for itself when needed: an order inside the page limit makes no extra
+ * request at all.
+ */
+async function completeLineItems(
+  graphql: GraphqlClient,
+  order: RawOrderNode,
+): Promise<RawOrderNode> {
+  const connection = get(order, "lineItems");
+  if (get(connection, "pageInfo.hasNextPage") !== true) return order;
+
+  const nodes = [...((get(connection, "nodes") as RawLineItemNode[]) ?? [])];
+  let cursor: string | null = (get(connection, "pageInfo.endCursor") as string) ?? null;
+  let pages = 0;
+
+  while (cursor && pages < MAX_PAGES) {
+    const data = await run(graphql, ORDER_LINE_ITEMS_QUERY, { id: order.id, cursor });
+    const page = get(data, "order.lineItems");
+    const pageNodes = get(page, "nodes");
+    if (Array.isArray(pageNodes)) nodes.push(...(pageNodes as RawLineItemNode[]));
+
+    const hasNext = get(page, "pageInfo.hasNextPage") === true;
+    cursor = hasNext ? ((get(page, "pageInfo.endCursor") as string) ?? null) : null;
+    pages++;
+  }
+
+  return { ...order, lineItems: { nodes } };
+}
+
+/**
+ * Warns when a list that cannot be paginated came back exactly full.
+ *
+ * `Order.refunds` and `Order.transactions` are plain lists — `first` truncates
+ * them and there is no cursor to ask for the rest, so this cannot be fixed the way
+ * line items were. An array of exactly the requested length is therefore either
+ * complete by coincidence or silently short, and the two are indistinguishable
+ * from here.
+ *
+ * Raising the limits is the obvious next step and is deliberately not done blind:
+ * these sit inside a 50-order page, Shopify prices queries by requested size, and
+ * inflating them risks trading a rare truncation for a backfill that fails
+ * outright on cost. That wants measuring against a real store first.
+ */
+function warnIfTruncated(order: RawOrderNode): void {
+  if (order.refunds?.length === REFUND_LIMIT) {
+    console.warn(
+      `[shopify] order ${order.name} returned exactly ${REFUND_LIMIT} refunds, ` +
+        `the maximum this query asks for. Refund totals for it may be incomplete.`,
+    );
+  }
+  if (order.transactions?.length === TRANSACTION_LIMIT) {
+    console.warn(
+      `[shopify] order ${order.name} returned exactly ${TRANSACTION_LIMIT} ` +
+        `transactions, the maximum this query asks for. Gateway fees for it may be ` +
+        `incomplete.`,
+    );
+  }
+}
+
+/** Completes an order's line items and reports what could not be completed. */
+async function hydrate(
+  graphql: GraphqlClient,
+  order: RawOrderNode,
+): Promise<RawOrderNode> {
+  warnIfTruncated(order);
+  return completeLineItems(graphql, order);
+}
+
 export async function fetchOrdersSince(
   graphql: GraphqlClient,
   since: Date,
@@ -120,7 +199,11 @@ export async function fetchOrdersSince(
   const collect = async (query: string) => {
     const orders: RawOrderNode[] = [];
     for await (const page of paginate(graphql, query, "orders", variables)) {
-      orders.push(...(page as RawOrderNode[]));
+      // Sequential on purpose. Shopify's leaky bucket is per shop, and firing a
+      // top-up per order concurrently is how a large page turns into a throttle.
+      for (const order of page as RawOrderNode[]) {
+        orders.push(await hydrate(graphql, order));
+      }
     }
     return orders;
   };
@@ -160,7 +243,11 @@ export async function fetchOrder(
     if (!isReturnsAccessDenied(error)) throw error;
     data = await run(graphql, ORDER_BY_ID_QUERY_NO_RETURNS, { id });
   }
-  return (get(data, "order") as RawOrderNode) ?? null;
+  const order = (get(data, "order") as RawOrderNode) ?? null;
+  // Webhooks go through the same completion as the backfill. An order edited to
+  // more than one page of lines would otherwise be re-ingested truncated, which is
+  // worse than the backfill case: it would overwrite complete rows with partial ones.
+  return order ? hydrate(graphql, order) : null;
 }
 
 export async function fetchProduct(
