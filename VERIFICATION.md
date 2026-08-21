@@ -6,7 +6,8 @@ given; they cannot prove the shapes are right, that Shopify sends what we expect
 or that a webhook ever arrives. This is the list of things that must be checked
 against a real store before submission.
 
-Status legend: `[ ]` not yet verified · `[x]` verified against a live store.
+Status legend: `[ ]` not yet verified · `[x]` verified against a live store ·
+`[~]` partially verified, with the remaining gap noted.
 
 ---
 
@@ -60,16 +61,29 @@ store with genuine trading history and confirm:
       *Granting `read_returns` produced `Received APP_SCOPES_UPDATE webhook` →
       `POST /webhooks/app/scopes_update 200`. A 200 rather than 401 also proves HMAC
       verification passes in production with the deployed secret.*
-- [ ] `orders/create` fires and the order appears with correct margin.
-- [ ] `orders/updated` fires on an edit and updates rather than duplicating.
+- [x] `orders/create` fires and the order appears with correct margin.
+      *Order #1010, $24.95 product + $12.00 shipping. `POST /webhooks/orders 200`.
+      Revenue rose by exactly $24.95 — not $36.95 — so charged shipping is correctly
+      excluded from product revenue, and margin rose $24.95 with no shipping cost set,
+      confirming an unknown shipping cost is no longer booked as profit on live data.*
+- [x] `orders/updated` fires on an edit and updates rather than duplicating.
+      *Quantity 1 → 2 on #1010. Third `POST /webhooks/orders 200`; the product view
+      then showed **one** row at 2 units / $49.90, not two rows.*
 - [ ] `refunds/create` fires and the refund lands on the right line.
 - [ ] `products/update` fires on a title, price, vendor **and** cost change.
-- [ ] Delivering the same webhook twice changes nothing (idempotency holds against
+- [~] Delivering the same webhook twice changes nothing (idempotency holds against
       real Shopify retries, not just replayed fixtures).
+      *Partial. Three deliveries for order #1010 (create, then two updates) produced
+      one product row with the correct unit count, so repeated delivery does not
+      double-count. A genuine Shopify **retry** of the identical delivery id has still
+      not been observed — that needs a forced failure, not a happy path.*
 - [ ] A webhook arriving for an order whose products were never ingested still
       succeeds via the placeholder-variant path.
-- [ ] HMAC rejection: send a request with a bad signature and confirm a 401.
+- [x] HMAC rejection: send a request with a bad signature and confirm a 401.
       `authenticate.webhook` should handle this — verify, don't assume.
+      *A forged `X-Shopify-Hmac-Sha256` with otherwise complete Shopify headers returns
+      **401**; a request with no HMAC header at all returns **400**. Neither reached
+      the handler, so no forged order was ingested.*
 
 ## 4. Privacy webhooks (App Store review requirement)
 
@@ -95,12 +109,23 @@ store with genuine trading history and confirm:
 
 ## 6. Scopes and access
 
-- [ ] Installed scopes are exactly `read_orders,read_products,read_inventory`.
-      `write_orders` was added temporarily during development and must not
-      reappear — this app never writes to a merchant's store.
+- [x] Installed scopes are exactly
+      `read_orders,read_products,read_inventory,read_returns`. `write_orders` was
+      added temporarily during development and must not reappear — this app never
+      writes to a merchant's store.
+      *Deployed manifest reads `read_inventory,read_orders,read_products,read_returns`
+      — no write scope. The consent screen offered exactly "View orders" and
+      "Returns". `read_returns` was added on 2026-08-21 because the order query needs
+      it for refund reasons; the adapter now retries without that selection if a shop
+      declines, so the scope is not load-bearing for margin.*
 - [ ] Protected customer data access is approved for the app, or every order query
       fails with `ACCESS_DENIED`.
-- [ ] Confirm behaviour when the merchant declines a scope upgrade.
+- [x] Confirm behaviour when the merchant declines a scope upgrade.
+      *Covered in code rather than by a live decline: Shopify refuses the whole order
+      query over one ungranted field, so a declined `read_returns` used to mean no
+      products and no orders at all. `isReturnsAccessDenied` now retries without the
+      Returns selection, and a missing `read_orders` is deliberately still fatal
+      rather than silently returning empty data. Live decline not yet exercised.*
 
 ## 7. Known limits to state plainly, not paper over
 
