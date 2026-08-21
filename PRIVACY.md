@@ -35,11 +35,12 @@ added to the database schema.
 
 ## What it requests access to
 
-Three read-only permissions:
+Four read-only permissions:
 
 - `read_orders` — order totals, discounts, refunds and payment fees
 - `read_products` — product titles, vendors, SKUs and prices
 - `read_inventory` — Shopify's per-variant unit cost field
+- `read_returns` — the reason recorded against a return, where one exists
 
 Profitkit has no write access. It cannot change anything in your store.
 
