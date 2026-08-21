@@ -60,6 +60,9 @@ export function mapOrderToDomainInputs(
     shippingCharged: toCents(get(rawOrder, "totalShippingPriceSet.shopMoney.amount") as string),
     shippingCost: groundTruth.shippingCost,
     shippingCostEstimated: true,
+    // The generator always supplies a shipping cost, so the seeded ground truth
+    // exercises the known-cost path.
+    shippingCostKnown: true,
     gatewayFeePercent: groundTruth.gatewayFeePercent,
     gatewayFeeFlat: groundTruth.gatewayFeeFlat,
     gatewayFeeEstimated: !groundTruth.gatewayFeeInPayload,

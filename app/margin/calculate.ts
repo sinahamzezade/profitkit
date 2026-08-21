@@ -42,7 +42,13 @@ export function calculateOrderMargin(
   );
   const gatewayFeeByLine = allocateProportionally(gatewayFeeTotal, netRevenues);
 
-  const shippingLossTotal = order.shippingCost - order.shippingCharged;
+  // An unknown shipping cost drops the term rather than defaulting to 0, which would
+  // turn the whole shipping charge into a gain and report margin above 100% of
+  // revenue. The gateway fee below still applies to shipping charged — the processor
+  // settles that money whether or not we know what fulfilment cost.
+  const shippingLossTotal = order.shippingCostKnown
+    ? order.shippingCost - order.shippingCharged
+    : 0;
   const evenWeights = lines.map(() => 1);
   const shippingLossByLine = allocateProportionally(shippingLossTotal, evenWeights);
 

@@ -87,6 +87,7 @@ export async function mapDbOrderToDomainInputs(
     shippingCharged: order.shippingChargedCents,
     shippingCost: shipping.cents,
     shippingCostEstimated: shipping.estimated,
+    shippingCostKnown: shipping.source !== "none",
     gatewayFeePercent: fee.percent,
     gatewayFeeFlat: fee.flatCents,
     gatewayFeeEstimated: fee.estimated,

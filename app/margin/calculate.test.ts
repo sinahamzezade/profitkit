@@ -7,6 +7,7 @@ const noFees: OrderCostInputs = {
   shippingCharged: 0,
   shippingCost: 0,
   shippingCostEstimated: false,
+  shippingCostKnown: true,
   gatewayFeePercent: 0,
   gatewayFeeFlat: 0,
   gatewayFeeEstimated: false,
@@ -144,5 +145,71 @@ describe("calculateOrderMargin", () => {
     const totalFee = results.reduce((sum, r) => sum + r.gatewayFee, 0);
     expect(totalFee).toBe(349);
     expect(results.every((r) => r.estimated)).toBe(true);
+  });
+});
+
+describe("shipping cost that was never supplied", () => {
+  const line: LineItemInput = {
+    id: "l1",
+    revenue: 10_000,
+    discountAllocated: 0,
+    cogs: 0,
+    cogsEstimated: true,
+    refunded: 0,
+  };
+
+  it("does not turn an unknown shipping cost into profit", () => {
+    // Regression: shippingCost defaulted to 0 when unset, so `cost − charged` made
+    // the whole shipping charge a gain and margin exceeded 100% of revenue. A real
+    // store reported 101.1% on a product before this was fixed.
+    const [result] = calculateOrderMargin([line], {
+      ...noFees,
+      shippingCharged: 1_500,
+      shippingCost: 0,
+      shippingCostKnown: false,
+    });
+
+    expect(result.shippingLoss).toBe(0);
+    expect(result.contributionMargin).toBe(10_000);
+  });
+
+  it("still counts a gain when the merchant says shipping costs them nothing", () => {
+    // An explicit 0 is a claim about the business, not missing information.
+    const [result] = calculateOrderMargin([line], {
+      ...noFees,
+      shippingCharged: 1_500,
+      shippingCost: 0,
+      shippingCostKnown: true,
+    });
+
+    expect(result.shippingLoss).toBe(-1_500);
+    expect(result.contributionMargin).toBe(11_500);
+  });
+
+  it("keeps charging the gateway fee on shipping the processor settled", () => {
+    // Dropping the shipping term must not also drop the fee on that money.
+    const [result] = calculateOrderMargin([line], {
+      ...noFees,
+      shippingCharged: 1_500,
+      shippingCost: 0,
+      shippingCostKnown: false,
+      gatewayFeePercent: 0.029,
+      gatewayFeeFlat: 30,
+    });
+
+    // 2.9% of (10_000 + 1_500) + 30 = 333.5 + 30 -> 364 (rounded)
+    expect(result.gatewayFee).toBe(364);
+    expect(result.shippingLoss).toBe(0);
+  });
+
+  it("never reports margin above revenue when the cost is unknown", () => {
+    const [result] = calculateOrderMargin([line], {
+      ...noFees,
+      shippingCharged: 9_999,
+      shippingCost: 0,
+      shippingCostKnown: false,
+    });
+
+    expect(result.contributionMargin).toBeLessThanOrEqual(result.revenue);
   });
 });

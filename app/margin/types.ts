@@ -27,6 +27,17 @@ export interface OrderCostInputs {
   /** Merchant-supplied or estimated actual shipping cost. Shopify never exposes this. */
   shippingCost: Cents;
   shippingCostEstimated: boolean;
+  /**
+   * False when no shipping cost has been supplied at all, as opposed to a merchant
+   * deliberately entering 0 to mean "I absorb nothing".
+   *
+   * The difference matters because the delta is `cost − charged`: with an unknown
+   * cost defaulting to 0, every shipping charge became a pure gain and margin could
+   * exceed 100% of revenue. Counting an unknown as profit is the one thing this model
+   * is built not to do, so when the cost is unknown the shipping term is dropped
+   * entirely — no gain, no loss.
+   */
+  shippingCostKnown: boolean;
   /** Percentage fee rate, e.g. 0.029 for 2.9%. */
   gatewayFeePercent: number;
   gatewayFeeFlat: Cents;
