@@ -6,8 +6,31 @@
  * margin engine never sees these shapes; the adapter maps them across.
  */
 
+/**
+ * The Returns selection, kept separable.
+ *
+ * This is the only part of the order selection that needs a scope beyond
+ * `read_orders`, and Shopify refuses the *whole query* when it is not granted —
+ * one denied field otherwise means no products and no orders at all. Splitting it
+ * out lets the adapter retry without it, so a shop that cannot or will not grant
+ * `read_returns` still gets margin, just without refund reasons.
+ */
+const RETURN_FIELDS = `
+    return {
+      returnLineItems(first: 100) {
+        nodes {
+          ... on ReturnLineItem {
+            returnReasonDefinition { name }
+            returnReasonNote
+            fulfillmentLineItem { lineItem { id } }
+          }
+        }
+      }
+    }
+`;
+
 /** Line item and refund selections shared by the backfill and webhook re-fetch. */
-const ORDER_FIELDS = `
+const orderFields = (withReturns: boolean) => `
   id
   name
   createdAt
@@ -47,17 +70,7 @@ const ORDER_FIELDS = `
         lineItem { id sku }
       }
     }
-    return {
-      returnLineItems(first: 100) {
-        nodes {
-          ... on ReturnLineItem {
-            returnReasonDefinition { name }
-            returnReasonNote
-            fulfillmentLineItem { lineItem { id } }
-          }
-        }
-      }
-    }
+    ${withReturns ? RETURN_FIELDS : ""}
   }
   transactions(first: 20) {
     gateway
@@ -71,25 +84,33 @@ const ORDER_FIELDS = `
  * backfill deliberately asks for a bounded window and history accumulates
  * forward through webhooks.
  */
-export const BACKFILL_ORDERS_QUERY = `#graphql
+const backfillOrdersQuery = (withReturns: boolean) => `#graphql
   query BackfillOrders($cursor: String, $query: String) {
     orders(first: 50, after: $cursor, query: $query, sortKey: CREATED_AT) {
       nodes {
-        ${ORDER_FIELDS}
+        ${orderFields(withReturns)}
       }
       pageInfo { hasNextPage endCursor }
     }
   }
 `;
 
+export const BACKFILL_ORDERS_QUERY = backfillOrdersQuery(true);
+
+/** Same query minus the Returns selection, for shops without `read_returns`. */
+export const BACKFILL_ORDERS_QUERY_NO_RETURNS = backfillOrdersQuery(false);
+
 /** Single order re-fetch, used by webhooks so every path ingests identical shapes. */
-export const ORDER_BY_ID_QUERY = `#graphql
+const orderByIdQuery = (withReturns: boolean) => `#graphql
   query OrderById($id: ID!) {
     order(id: $id) {
-      ${ORDER_FIELDS}
+      ${orderFields(withReturns)}
     }
   }
 `;
+
+export const ORDER_BY_ID_QUERY = orderByIdQuery(true);
+export const ORDER_BY_ID_QUERY_NO_RETURNS = orderByIdQuery(false);
 
 export const BACKFILL_PRODUCTS_QUERY = `#graphql
   query BackfillProducts($cursor: String) {

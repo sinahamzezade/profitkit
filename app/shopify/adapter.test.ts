@@ -6,6 +6,7 @@ import {
   fetchOrder,
   fetchOrdersSince,
   fetchProduct,
+  isReturnsAccessDenied,
   paginate,
   ShopifyGraphqlError,
   type GraphqlClient,
@@ -266,5 +267,63 @@ describe("install backfill", () => {
 
     expect(products).toHaveLength(1);
     expect(orders).toHaveLength(1);
+  });
+});
+
+describe("returns scope fallback", () => {
+  const DENIAL =
+    "Access denied for return field. Required access: `read_returns` access " +
+    "scope or `read_marketplace_returns` access scope.";
+
+  it("recognises the returns denial and not other access errors", () => {
+    expect(isReturnsAccessDenied(new Error(DENIAL))).toBe(true);
+    // A missing read_orders must NOT look like a returns problem — retrying
+    // without returns would turn the failure that matters into empty data.
+    expect(isReturnsAccessDenied(new Error("Access denied for orders field."))).toBe(false);
+    expect(isReturnsAccessDenied(new Error("Throttled"))).toBe(false);
+  });
+
+  it("retries the backfill without refund reasons and still returns orders", async () => {
+    const calls: string[] = [];
+    const graphql = ((query: string) => {
+      calls.push(query);
+      if (query.includes("returnReasonDefinition")) return Promise.reject(new Error(DENIAL));
+      return Promise.resolve({
+        json: () =>
+          Promise.resolve({
+            data: { orders: { nodes: [RECORDED_ORDER], pageInfo: { hasNextPage: false } } },
+          }),
+      });
+    }) as unknown as GraphqlClient;
+
+    const orders = await fetchOrdersSince(graphql, new Date("2026-06-21"));
+
+    expect(orders).toHaveLength(1);
+    expect(calls[0]).toContain("returnReasonDefinition");
+    expect(calls[1]).not.toContain("returnReasonDefinition");
+  });
+
+  it("still surfaces an unrelated access error rather than masking it", async () => {
+    const graphql = (() =>
+      Promise.reject(new Error("Access denied for orders field."))) as unknown as GraphqlClient;
+
+    await expect(fetchOrdersSince(graphql, new Date("2026-06-21"))).rejects.toThrow(
+      /orders field/,
+    );
+  });
+
+  it("falls back on the webhook re-fetch path too", async () => {
+    // Otherwise a shop without read_returns would stop ingesting live orders.
+    const calls: string[] = [];
+    const graphql = ((query: string) => {
+      calls.push(query);
+      if (query.includes("returnReasonDefinition")) return Promise.reject(new Error(DENIAL));
+      return Promise.resolve({ json: () => Promise.resolve({ data: { order: RECORDED_ORDER } }) });
+    }) as unknown as GraphqlClient;
+
+    const order = await fetchOrder(graphql, "gid://shopify/Order/1001");
+
+    expect(order?.id).toBe("gid://shopify/Order/1001");
+    expect(calls).toHaveLength(2);
   });
 });

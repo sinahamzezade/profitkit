@@ -45,7 +45,10 @@ api_version = "2026-10"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders,read_products,read_inventory"
+# read_returns is needed only for refund *reasons* (the Returns flow). Shopify
+# refuses the whole order query when it is missing, so the adapter retries without
+# that selection rather than leaving a shop with no data at all.
+scopes = "read_orders,read_products,read_inventory,read_returns"
 
 [auth]
 redirect_urls = [

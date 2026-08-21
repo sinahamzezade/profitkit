@@ -1,8 +1,10 @@
 import type { RawOrderNode, RawProductNode } from "../ingestion/types";
 import {
   BACKFILL_ORDERS_QUERY,
+  BACKFILL_ORDERS_QUERY_NO_RETURNS,
   BACKFILL_PRODUCTS_QUERY,
   ORDER_BY_ID_QUERY,
+  ORDER_BY_ID_QUERY_NO_RETURNS,
   PRODUCT_BY_ID_QUERY,
 } from "./queries";
 
@@ -91,17 +93,49 @@ export async function* paginate(
   } while (cursor && pages < MAX_PAGES);
 }
 
+/**
+ * True when Shopify refused the query specifically because the Returns selection
+ * needs a scope this shop hasn't granted.
+ *
+ * Deliberately narrow. A blanket "retry without returns on any access error" would
+ * mask a missing `read_orders` — the failure that actually matters — by quietly
+ * succeeding with an empty result. The library raises its own `GraphqlQueryError`
+ * before our `run` inspects the body, so this has to match on the message.
+ */
+export function isReturnsAccessDenied(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /read_returns|read_marketplace_returns/.test(message) ||
+    (/access denied/i.test(message) && /\breturn\b/i.test(message))
+  );
+}
+
 export async function fetchOrdersSince(
   graphql: GraphqlClient,
   since: Date,
 ): Promise<RawOrderNode[]> {
-  const orders: RawOrderNode[] = [];
-  for await (const page of paginate(graphql, BACKFILL_ORDERS_QUERY, "orders", {
-    query: backfillQueryString(since),
-  })) {
-    orders.push(...(page as RawOrderNode[]));
+  const variables = { query: backfillQueryString(since) };
+
+  const collect = async (query: string) => {
+    const orders: RawOrderNode[] = [];
+    for await (const page of paginate(graphql, query, "orders", variables)) {
+      orders.push(...(page as RawOrderNode[]));
+    }
+    return orders;
+  };
+
+  try {
+    return await collect(BACKFILL_ORDERS_QUERY);
+  } catch (error) {
+    if (!isReturnsAccessDenied(error)) throw error;
+    // Refund reasons are an enrichment; margin does not depend on them. Losing the
+    // whole ingest over one refused field would leave the merchant an empty app.
+    console.warn(
+      "[shopify] returns access denied — backfilling without refund reasons. " +
+        "Grant read_returns to see why refunds happened.",
+    );
+    return collect(BACKFILL_ORDERS_QUERY_NO_RETURNS);
   }
-  return orders;
 }
 
 export async function fetchAllProducts(graphql: GraphqlClient): Promise<RawProductNode[]> {
@@ -116,7 +150,15 @@ export async function fetchOrder(
   graphql: GraphqlClient,
   id: string,
 ): Promise<RawOrderNode | null> {
-  const data = await run(graphql, ORDER_BY_ID_QUERY, { id });
+  // Same fallback as the backfill: webhooks must keep ingesting on a shop without
+  // `read_returns`, or live orders would stop arriving for that shop entirely.
+  let data: unknown;
+  try {
+    data = await run(graphql, ORDER_BY_ID_QUERY, { id });
+  } catch (error) {
+    if (!isReturnsAccessDenied(error)) throw error;
+    data = await run(graphql, ORDER_BY_ID_QUERY_NO_RETURNS, { id });
+  }
   return (get(data, "order") as RawOrderNode) ?? null;
 }
 
