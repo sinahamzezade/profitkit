@@ -55,6 +55,15 @@ export function CoveragePanel({
             {formatMoney(coverage.nextStep.revenue)} of revenue.
           </p>
         )}
+
+        {/* The panel that tells a merchant their numbers are estimates is the place
+            to offer the thing that stops them being estimates. */}
+        {loosePercent > 0 && (
+          <p className="pk-panel-note">
+            Or replace the guesswork outright:{" "}
+            <s-link href="/app/costs/import">import a cost sheet</s-link>.
+          </p>
+        )}
       </WidgetBody>
     </s-section>
   );

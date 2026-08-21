@@ -223,6 +223,13 @@ function SettingsForm({ data }: { data: ReadyData }) {
           Shopify has a cost field but almost nobody fills it in, so start with one
           number for everything and sharpen it per supplier when you want to.
         </s-paragraph>
+        <s-paragraph>
+          <s-text tone="neutral">
+            Have the real figures in a spreadsheet?{" "}
+            <s-link href="/app/costs/import">Import a cost sheet</s-link> — an exact
+            cost per product outranks every estimate below.
+          </s-text>
+        </s-paragraph>
 
         <div className="pk-field-row">
           <div className="pk-field">
