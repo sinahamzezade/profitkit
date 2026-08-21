@@ -42,6 +42,29 @@ left alone rather than touched without asking.
 The `marketing/` landing page lives one directory up, outside this repository. It has
 its own git history and its own `.env.local`, so it is deliberately not tracked here.
 
+## Deployment
+
+Production runs on Railway under **Profitkit's Projects** (`profitkitapp@gmail.com`):
+project `profitkit`, service `profitkit-app` built from the `Dockerfile`, plus a
+Postgres service. `DATABASE_URL` is a reference to that service, not a copied string.
+
+**Check `railway whoami` before any Railway work.** It must report
+`profitkitapp@gmail.com`. The first provisioning went to a different personal account
+purely because that was the account the CLI happened to be signed into, which created
+a duplicate project invisible from the dashboard this app is managed from. Do not
+assume the signed-in account is the right one — the browser can silently reuse the
+wrong session too.
+
+```bash
+railway whoami                       # must be profitkitapp@gmail.com
+railway logs --service profitkit-app
+railway up --detach --service profitkit-app -m "<summary>"
+```
+
+`SHOPIFY_API_SECRET` lives only in Railway's variable UI. It is 38 characters with an
+`shpss_` prefix; a truncated value does not error, it loops on 401 looking like a
+session bug. `shopify app env show` is the authoritative source.
+
 ## Local dependencies
 
 Postgres runs in Docker as `profitkit-postgres` on port **5433**. After a reboot:
