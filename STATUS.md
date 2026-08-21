@@ -47,7 +47,7 @@ has been seen, and the app has never been submitted.
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
 npm test               # 220 unit tests
-npm run seed           # regenerate the synthetic dataset (deterministic)
+npm run seed           # regenerate the synthetic dataset (see note below)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back
 npm run import-cogs -- <file.csv> <shop-domain>
@@ -55,6 +55,19 @@ npm run import-cogs -- <file.csv> <shop-domain>
 
 Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 (`docker start profitkit-postgres` after a reboot). `DATABASE_URL` is in `.env`.
+
+**`npm run seed` is reproducible except for dates.** Everything the seed 42 decides —
+catalog, prices, costs, baskets, quantities, discounts, refunds — is identical run to
+run: hash two fixtures with the ISO timestamps stripped and they match exactly. Order
+`createdAt` values are anchored to `Date.now()` in `app/seed/orders.ts`, deliberately,
+so the dataset always lands inside a recent 90-day window rather than ageing out. The
+consequence is that two fixtures never hash the same, so a raw diff between runs tells
+you nothing — compare with timestamps normalised, or compare the reported margins.
+
+The fixture at `app/seed/fixtures/seed-dataset.json` is **gitignored**, and
+`npm run load-seed` does not read it — the loader regenerates from the same generator,
+so the two cannot drift. The fixture is a recorded artifact for inspection, nothing
+depends on it.
 
 ## Known gaps, in the order they'd hurt
 
