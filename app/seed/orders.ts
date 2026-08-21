@@ -1,6 +1,6 @@
 import { allocateProportionally } from "../margin/allocate";
 import type { Rng } from "./rng";
-import type { SeedProduct } from "./catalog";
+import { SHIPPING_RATES, type SeedProduct } from "./catalog";
 
 const DISCOUNT_CODES = [
   { code: "SAVE10", percentage: 10 },
@@ -8,7 +8,6 @@ const DISCOUNT_CODES = [
   { code: "BFRIDAY20", percentage: 20 },
 ];
 
-const SHIPPING_RATES = [499, 599, 799, 999];
 
 /** Mirrors Shopify's ReturnReason enum, which only applies to Returns-flow refunds. */
 const RETURN_REASONS = [
@@ -68,6 +67,33 @@ export function generateOrders(
     for (let j = 0; j < lineCount; j++) {
       const product = rng.pick(catalog);
       chosen.push({ product, quantity: rng.int(1, 3) });
+    }
+
+    /*
+     * A product planted to lose on shipping has to ship on its own.
+     *
+     * The engine splits an order's shipping evenly across its lines — it tracks
+     * weight and there is no weight field — so in a three-line basket this product
+     * carries only a third of the shortfall its own bulk created, and the rest lands
+     * on whatever it was bought with. A high-margin planted loser survives that
+     * dilution and reads as profitable, while its innocent basket-mates absorb the
+     * loss. Raising the shipping cost cannot fix it: the more expensive the product,
+     * the more gross margin there is to cushion a third of the loss.
+     *
+     * Shipping it alone is also what a bulky item actually does, and it keeps the
+     * cause attributable — the whole point of the plant is that the app should name
+     * shipping, not cost of goods.
+     *
+     * Same shape as the discount/refund plant below, which likewise needs the order
+     * generator's cooperation for the catalog flag to mean anything.
+     */
+    const shippingLoserIndex = chosen.findIndex(
+      (c) => c.product.lossDriver === "shipping",
+    );
+    if (shippingLoserIndex !== -1 && chosen.length > 1) {
+      const alone = chosen[shippingLoserIndex];
+      chosen.length = 0;
+      chosen.push(alone);
     }
 
     const lineOriginalTotals = chosen.map((c) => c.product.variant.price * c.quantity);

@@ -33,6 +33,14 @@ const VENDORS = [
   "Pinegate Studio",
 ] as const;
 
+/**
+ * Shipping the store charges, in cents. Lives here rather than in the order
+ * generator because the catalog has to price a planted shipping loser against the
+ * *highest* of these — the loss has to hold whichever rate an order draws.
+ */
+export const SHIPPING_RATES = [499, 599, 799, 999] as const;
+export const MAX_SHIPPING_RATE = Math.max(...SHIPPING_RATES);
+
 const PRICE_TIERS: Array<{ value: readonly [number, number]; weight: number }> = [
   { value: [1500, 2500], weight: 20 },
   { value: [3500, 6500], weight: 40 },
@@ -95,10 +103,21 @@ export function generateCatalog(rng: Rng, count = 62, plantedLosers = 8): SeedPr
       shippingCostPerUnit = rng.int(300, 600);
     } else if (lossDriver === "shipping") {
       cogsPercent = rng.float(0.4, 0.55);
-      // Scaled to price, not a flat amount — a heavy/bulky item costs a fraction of
-      // its own price to ship regardless of price tier, so the loss actually shows
-      // up whether it's a $20 or $200 product.
-      shippingCostPerUnit = Math.round(price * rng.float(0.6, 0.8));
+      /*
+       * Derived from the product's own economics, not a fraction of price.
+       *
+       * This used to be `price * 0.6–0.8`, which does not lose money on a cheap
+       * product: 0.7 × $14.99 is $10.49, the store charges up to $9.99 for the whole
+       * order, so the shipping shortfall came to pennies against a ~50% gross margin.
+       * That is exactly how the planted Heritage Candle ended up at **+$5.04** and
+       * `npm run seed` reported it undetected.
+       *
+       * To lose money the shipping has to beat the product's entire gross margin
+       * *and* the most the store ever charges to ship an order. Anything less and the
+       * outcome depends on which shipping rate the order happened to draw.
+       */
+      const grossMarginPerUnit = price - Math.round(price * cogsPercent);
+      shippingCostPerUnit = grossMarginPerUnit + MAX_SHIPPING_RATE + rng.int(200, 600);
     } else if (lossDriver === "discount_refund") {
       cogsPercent = rng.float(0.55, 0.68);
       shippingCostPerUnit = rng.int(400, 700);

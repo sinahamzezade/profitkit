@@ -22,7 +22,7 @@ has been seen, and the app has never been submitted.
 | Area | State |
 |---|---|
 | Margin engine | Pure functions, no I/O, unit-tested |
-| Seeded dataset | 62 products, ~500 orders, 8 planted loss-makers, **7 detected** — `npm run seed` prints `✗ 1 planted losers were NOT detected: Heritage Candle`, which lands at **+$5.04** (rank 11/62, shipping-driven). The generator plants it but does not push it below zero, so the seed's own self-check fails. Calibration in the generator, not a detection bug — the engine is right that a product earning $5.04 is not losing money |
+| Seeded dataset | 62 products, ~500 orders, 8 planted loss-makers, **all 8 detected** and holding ranks 1–8, with exactly one organic loser behind them. Shipping-driven plants used to survive: shipping cost was `price × 0.6–0.8`, which on a cheap product is under the $9.99 the store charges for the whole order, and the engine's even split then spread what loss there was onto innocent basket-mates. A planted shipping loser now costs more to ship than its entire gross margin plus the highest rate charged, and ships alone — Heritage Candle went from **+$5.04** to **−$147.39** |
 | Persistence | Postgres, idempotent upserts keyed on Shopify GIDs |
 | Cost ladder | Global %, vendor override, CSV import; precedence verified against live data |
 | Cost settings | Global and per-supplier COGS, per-gateway fee rules, shipping cost — save round-trip verified against Postgres |
