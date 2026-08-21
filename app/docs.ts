@@ -4,25 +4,32 @@
  * One place, because these appear in the dashboard, will appear in the App Store
  * listing, and would otherwise drift apart.
  *
- * BOTH ARE EMPTY ON PURPOSE. `hasGuide` / `hasVideo` gate the links, so nothing
- * renders until a URL is confirmed. An onboarding link that goes somewhere wrong
- * is worse than no link at all — see below for how that was learned.
+ * `hasGuide` / `hasVideo` gate the links, so nothing renders until a URL is
+ * confirmed reachable. An onboarding link that goes somewhere wrong is worse than
+ * no link at all — see below for how that was learned twice.
  */
 
 /**
  * Written walkthrough.
  *
- * This previously read "https://profitkit.app/guide", a domain taken from this
- * repo's own docs and never verified. profitkit.app is registered and live, and it
- * belongs to a different company: "ProfitKit — Know your real profit. Pause the
- * ads that lose it", a Shopify ad-spend tool. So the dashboard was sending
- * merchants to a competitor in the same category.
+ * Verified live: `GET https://profitkit.vercel.app/guide` returns 200 and the page
+ * titles itself "How to use Profitkit".
  *
- * Fill this in only with a domain that is confirmed registered to Profitkit. The
- * page itself exists in ../marketing at /guide, so once the site is deployed the
- * value is `https://<your-domain>/guide`.
+ * Two earlier states, both worth remembering:
+ *
+ *  - It read "https://profitkit.app/guide", a domain lifted from this repo's own
+ *    docs and never checked. profitkit.app is live and belongs to a *different*
+ *    company — a Shopify ad-spend tool in the same category — so the dashboard was
+ *    routing merchants to a competitor.
+ *  - It was then blank, because the page existed in ../marketing but that route
+ *    404ed in production. The site turned out to be deployed by CLI rather than from
+ *    git, so pushing the page never published it.
+ *
+ * The domain is a Vercel preview subdomain and therefore temporary. When a custom
+ * domain is registered this needs updating, and the check is the same one both
+ * times: request the URL and read the status code.
  */
-export const GUIDE_URL = "";
+export const GUIDE_URL = "https://profitkit.vercel.app/guide";
 
 /**
  * Video walkthrough. Empty until a real video exists.

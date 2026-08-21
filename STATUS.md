@@ -36,7 +36,6 @@ has been seen, and the app has never been submitted.
 | Deployed config | App version profitkit-8 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain; scopes include read_returns |
 | Billing | `billing.check` wired; $29 recurring plan registered |
 | Install | Verified on a live store: 17 products, 9 orders backfilled. Claimed once per shop from `afterAuth` *and* the app loader, since token-exchange sessions never call `afterAuth` |
-
 | Overview page | Split from one ~1,550-line route into 24 modules under `app/overview/`; the route is now 250 lines |
 | Charts | ApexCharts, dynamically imported so it stays out of the server bundle and its own ~279 kB gzip chunk loads after paint. Sparklines per stat card, horizontal bars for margin by month, with a screen-reader table beside the chart |
 | Product images | `imageUrl` column, set during ingestion, with a catch-up query for products ingested before the column existed |
@@ -79,16 +78,18 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
    cost settings, but has no way to upload a real cost sheet from inside the app.
 6. **Listing assets not produced.** Screenshots and the demo video are manual;
    `LISTING.md` says which four screenshots and in what order.
-7. **Marketing site needs deploying before the contact details are true.** The privacy
-   policy is live at **https://profitkit.vercel.app/privacy** and the support address is
-   `profitkitapp@gmail.com` — a mailbox that exists, chosen because `vercel.app`
-   subdomains cannot receive mail. Both the docs here and the `marketing/` source now
-   say so, but **the deployed page still prints `support@profitkit.app`**, which is a
-   different Shopify app in the same category — merchants emailing support currently
-   reach a competitor. `marketing/` is a separate repo with its own remote; the fix is
-   committed nowhere until it is deployed from there.
-   `GUIDE_URL` in `app/docs.ts` stays empty on purpose: `profitkit.vercel.app/guide`
-   returns 404, so the walkthrough exists in the marketing source but is not published.
+7. **The marketing site is deployed by CLI, not from git.** Both pages are now correct
+   and live — `/privacy` shows `profitkitapp@gmail.com` and `/guide` returns 200 — but
+   getting there needed `vercel --prod` run by hand from `marketing/`. **Pushing that
+   repo publishes nothing.** A push looked successful while the live site kept serving
+   a build old enough to predate the guide page entirely, which is how `/guide` came to
+   404 for a page that was committed and building fine. Anyone changing that site must
+   deploy it explicitly and then request the URL to confirm.
+
+   Still open: the address is `profitkitapp@gmail.com` because a `vercel.app` subdomain
+   cannot receive mail, and the domain itself is a Vercel preview subdomain and so
+   temporary. A custom domain means updating `GUIDE_URL` in `app/docs.ts`, the privacy
+   URL in `LISTING.md`, and the contact address in three places.
 8. **Shipping cost has no home of its own.** It's parked in `fee_rules` under a
    reserved pseudo-gateway name to avoid a migration for one integer.
 9. **Three routes still hardcode the palette, and one breaks the colour rule.**
