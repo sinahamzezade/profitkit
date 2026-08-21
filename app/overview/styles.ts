@@ -12,11 +12,26 @@
  * two of the colours drift apart.
  */
 export const PK_STYLES = `
-  /* One entrance, staggered by --i, transform and opacity only. Off entirely for
-     anyone who has asked for less motion. */
+  /*
+   * One entrance, staggered by --i. Off for anyone who asked for less motion.
+   *
+   * Transform only — deliberately NOT opacity, and this is the important part.
+   *
+   * It animated opacity from 0 with fill-mode both, which holds the from-state
+   * during the delay. CSS animations do not advance while a page produces no
+   * frames, and
+   * an admin iframe in an unfocused window produces none — so the cards sat at
+   * opacity 0 indefinitely and the dashboard rendered its heading above a blank
+   * space. Caught it while taking listing screenshots: three cards were empty until
+   * the window was clicked, then all four appeared at once. It is very likely the
+   * intermittent "blank body" this app has shown before and that nothing explained.
+   *
+   * Animating transform alone makes the worst case a 6px offset rather than
+   * invisible content. Nothing readable is ever gated on an animation completing.
+   */
   @keyframes pk-rise {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: none; }
+    from { transform: translateY(6px); }
+    to   { transform: none; }
   }
   @media (prefers-reduced-motion: no-preference) {
     .pk-stat,
