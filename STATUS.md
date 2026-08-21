@@ -10,7 +10,7 @@ billing.
 
 **Live:** deployed on Railway and installed on a dev store. Install, backfill,
 webhook registration and delivery, and the three mandatory privacy webhooks are
-verified against that store — 14 of 32 `VERIFICATION.md` items, 2 partial.
+verified against that store — 15 of 32 `VERIFICATION.md` items, 3 partial.
 
 **Not done:** billing has never been exercised, no store with real trading history
 has been seen, and the app has never been submitted.
@@ -30,7 +30,7 @@ has been seen, and the app has never been submitted.
 | Hero view | Ranked losers with cause attribution; one-click onboarding |
 | Discounts & refunds | Monthly erosion by code and reason; totals tie back to raw sums |
 | Tier gating | Applied as a query bound before any read; export returns 402 on free |
-| Adapter | Mock-tested against recorded shapes, plus live `orders/create` and `orders/updated` delivery on a real store |
+| Adapter | Mock-tested against recorded shapes, plus live delivery of orders/create, orders/updated, refunds/create and products/update on a real store |
 | Privacy | Three mandatory webhooks verified live (200 with real HMAC); shop/redact deletion proved by row counts and scoped to one shop; schema asserted free of customer identity |
 | Hosting | Railway (Profitkit's Projects, project 22490a45): Postgres + profitkit-app from the Dockerfile, migrations applied on boot |
 | Deployed config | App version profitkit-8 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain; scopes include read_returns |
@@ -64,9 +64,8 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
    nothing here depends on it. See `CLAUDE.md` for which account production uses.
 2. **Only partly verified against a real store.** Install, backfill, the 60-day
    window, webhook registration and one live webhook delivery are now confirmed
-   (`VERIFICATION.md`: 14 of 32 checked, 2 partial). Refund webhook delivery,
-   pagination past 50 orders, billing, and field fill rates on a store with real
-   trading history are not.
+   (`VERIFICATION.md`: 15 of 32 checked, 3 partial). Billing, pagination past 50
+   orders, and field fill rates on a store with real trading history are not.
 3. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
    Fine for the target merchant, wrong for a large one.
 4. **Collection-level COGS never fires.** Logic and tests exist; collection

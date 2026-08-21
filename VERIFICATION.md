@@ -44,9 +44,17 @@ store with genuine trading history and confirm:
       gateway. **This is the assumption the whole fee-modelling path rests on.**
 - [ ] `discountApplications` returns `code` for code discounts and nothing for
       automatic ones.
-- [ ] Refunds created through the Returns flow carry
+- [~] Refunds created through the Returns flow carry
       `returnLineItems.returnReasonDefinition.name`; refunds issued from the order
       page carry none.
+      *Second half confirmed on live data. A refund issued from the order page with
+      "Damaged in transit" typed into Shopify's own "Reason for refund" field produced
+      no structured reason: the app reports "$654.90 — 100% of refunded money — was
+      refunded straight from the order page, where Shopify stores no reason at all."
+      So that admin field is not `returnReasonDefinition` and is not exposed as one.
+      The first half — that a Returns-flow refund does carry the name — still needs a
+      return processed through the Returns flow, which is also the only way to
+      exercise the `read_returns` selection added on 2026-08-21.*
 
 ## 3. Webhooks
 
@@ -69,7 +77,17 @@ store with genuine trading history and confirm:
 - [x] `orders/updated` fires on an edit and updates rather than duplicating.
       *Quantity 1 → 2 on #1010. Third `POST /webhooks/orders 200`; the product view
       then showed **one** row at 2 units / $49.90, not two rows.*
-- [ ] `refunds/create` fires and the refund lands on the right line.
+- [x] `refunds/create` fires and the refund lands on the right line.
+      *1 of 2 units refunded on #1010 at $24.95. `POST /webhooks/refunds/create 200`.
+      The Ski Wax row went to $49.90 revenue / $24.95 refunds / $24.95 margin (50.0%)
+      and the waterfall grew a Refunds segment — the refund attached to the right line,
+      not the order as a whole. The refund also fired `orders/updated` and
+      `products/update` (the restock); all three returned 200 and the refund was
+      counted once, not three times.*
+      *Worth knowing: units then read "1 units · $49.90 revenue", which looks
+      inconsistent but is deliberate — units count what the customer kept, revenue
+      stays gross, and refunds are a separate term. `lossPerUnit` guards the
+      fully-refunded case by returning null rather than dividing by zero.*
 - [~] `products/update` fires on a title, price, vendor **and** cost change.
       *Partial. Two `POST /webhooks/products/update 200` arrived unprompted while
       order #1010 was being edited — inventory movement triggered them — so the
