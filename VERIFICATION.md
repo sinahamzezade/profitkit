@@ -70,7 +70,12 @@ store with genuine trading history and confirm:
       *Quantity 1 → 2 on #1010. Third `POST /webhooks/orders 200`; the product view
       then showed **one** row at 2 units / $49.90, not two rows.*
 - [ ] `refunds/create` fires and the refund lands on the right line.
-- [ ] `products/update` fires on a title, price, vendor **and** cost change.
+- [~] `products/update` fires on a title, price, vendor **and** cost change.
+      *Partial. Two `POST /webhooks/products/update 200` arrived unprompted while
+      order #1010 was being edited — inventory movement triggered them — so the
+      subscription delivers and the handler accepts. The four specific field changes
+      have not been made individually, and `nativeCogsCents` in particular is the one
+      that matters for the cost ladder.*
 - [~] Delivering the same webhook twice changes nothing (idempotency holds against
       real Shopify retries, not just replayed fixtures).
       *Partial. Three deliveries for order #1010 (create, then two updates) produced
@@ -87,13 +92,37 @@ store with genuine trading history and confirm:
 
 ## 4. Privacy webhooks (App Store review requirement)
 
-- [ ] `customers/data_request` returns 200.
-- [ ] `customers/redact` returns 200.
-- [ ] `shop/redact` returns 200 **and** actually deletes every row for that shop.
+All three delivered live via `shopify app webhook trigger` against the Railway
+deployment, so the HMAC was real and the routes were reached through Shopify's own
+signing path — not a hand-rolled request.
+
+- [x] `customers/data_request` returns 200.
+      *`CUSTOMERS_DATA_REQUEST for shop.myshopify.com` → 200, and the response carries
+      the explanation rather than a bare acknowledgement.*
+- [x] `customers/redact` returns 200.
+      *`CUSTOMERS_REDACT` → 200: "No customer-identifying fields are stored, so there
+      is nothing to redact."*
+- [x] `shop/redact` returns 200 **and** actually deletes every row for that shop.
       Confirm in the database, not just by the response code.
-- [ ] Re-confirm no customer identity has crept into the schema since — the
+      *Two halves. Live: `SHOP_REDACT for shop.myshopify.com: no data held` → 200 —
+      the CLI sends a placeholder domain, which exercises the no-op branch and left
+      the real store untouched. Deletion itself was proved against Postgres with row
+      counts on a throwaway shop: 1 row in each of shops, products, variants, orders,
+      order_lines, refunds, cogs_entries, fee_rules and sessions → all 0. A second
+      shop belonging to a different domain kept all nine rows, so the delete is
+      scoped rather than a blanket wipe, and a second redact returned
+      `{deleted: false}`, proving the row is gone rather than the handler merely
+      claiming success.*
+      **Not done:** `shop/redact` for the real store's own domain against the Railway
+      database. It would wipe the ingested data and the session, forcing a re-consent;
+      the local proof covers the same code path.
+- [x] Re-confirm no customer identity has crept into the schema since — the
       privacy responses claim we store none, and `app/privacy/gdpr.test.ts`
       asserts it, but a reviewer will check the real database.
+      *The test greps the live schema for customerId, email, phone, address, firstName
+      and lastName across every domain model — excluding Shopify's own Session model,
+      which holds merchant auth and is deleted on shop/redact — and asserts at least
+      six `onDelete: Cascade` declarations. Passing as of 205 tests.*
 
 ## 5. Billing
 

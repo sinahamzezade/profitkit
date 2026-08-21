@@ -27,7 +27,7 @@ has never been submitted. See `VERIFICATION.md`.
 | Discounts & refunds | Monthly erosion by code and reason; totals tie back to raw sums |
 | Tier gating | Applied as a query bound before any read; export returns 402 on free |
 | Adapter | Mock-tested against recorded shapes, plus live `orders/create` and `orders/updated` delivery on a real store |
-| Privacy | Three mandatory webhooks registered and live; schema asserted free of customer identity |
+| Privacy | Three mandatory webhooks verified live (200 with real HMAC); shop/redact deletion proved by row counts and scoped to one shop; schema asserted free of customer identity |
 | Hosting | Railway (Profitkit's Projects, project 22490a45): Postgres + profitkit-app from the Dockerfile, migrations applied on boot |
 | Deployed config | App version profitkit-7 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain |
 | Billing | `billing.check` wired; $29 recurring plan registered |
@@ -53,9 +53,9 @@ Local Postgres runs in Docker as `profitkit-postgres` on port **5433**
 
 1. **Only partly verified against a real store.** Install, backfill, the 60-day
    window, webhook registration and one live webhook delivery are now confirmed
-   (`VERIFICATION.md`: 10 of 32 checked). Refund and product webhook delivery,
-   pagination past 50 orders, privacy-webhook responses, billing, and field fill
-   rates on a store with real trading history are not.
+   (`VERIFICATION.md`: 14 of 32 checked, 2 partial). Refund webhook delivery,
+   pagination past 50 orders, billing, and field fill rates on a store with real
+   trading history are not.
 2. **Line items capped at 100 per order, refunds at 20.** No per-order pagination.
    Fine for the target merchant, wrong for a large one.
 3. **Collection-level COGS never fires.** Logic and tests exist; collection
