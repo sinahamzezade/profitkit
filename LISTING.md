@@ -83,8 +83,13 @@ otherwise — and tells you which figures are modelled.
 
 ## Support
 
-- Support email: **support@profitkit.app** *(not yet provisioned — see below)*
-- Privacy policy: **https://profitkit.app/privacy** *(not yet published)*
+- Privacy policy: **https://profitkit.vercel.app/privacy** — published and verified
+  live. `profitkit.app` is **not ours**; it belongs to a different Shopify app in the
+  same category, and every reference to it here was wrong.
+- Support email: **profitkitapp@gmail.com** — the mailbox that already owns the Partner
+  and Railway accounts, so it demonstrably receives mail. Chosen over an address on the
+  published domain because `vercel.app` subdomains cannot take mail at all. Worth
+  revisiting if a custom domain is registered.
 
 ---
 
@@ -109,8 +114,14 @@ Written down so nobody adds them later without checking:
 
 ## Before submission
 
-- [ ] Provision `support@profitkit.app` and confirm it receives mail.
-- [ ] Publish the privacy policy at a public URL.
+- [x] Support address decided: `profitkitapp@gmail.com`, an existing mailbox.
+      *Not `support@profitkit.app` — someone else's domain — and not anything at
+      `profitkit.vercel.app`, which cannot take mail.*
+- [x] Publish the privacy policy at a public URL.
+      *https://profitkit.vercel.app/privacy, fetched and confirmed live.*
+- [ ] **Deploy the marketing site** so the live privacy page and footer show the new
+      address. The source in `marketing/` is fixed; until it ships, the published page
+      still points merchants at a competitor's domain.
 - [ ] Capture the four screenshots at 1600×900 from a seeded store.
 - [ ] Record the 60-second demo: install → cost estimate → loss-making products.
 - [ ] Complete every item in `VERIFICATION.md`.

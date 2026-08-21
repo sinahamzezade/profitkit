@@ -85,10 +85,15 @@ change affects what is stored, communicated to installed merchants.
 
 ## Contact
 
-**support@profitkit.app**
+**profitkitapp@gmail.com**
 
 ---
 
-*Deployment note: this document must be published at a public URL and that URL
-entered in the App Store listing before submission. A privacy policy that only
-exists in the repository does not satisfy the review requirement.*
+*Deployment note: published at **https://profitkit.vercel.app/privacy**, which is the
+URL to enter in the App Store listing. The rendered page lives in the separate
+`marketing/` project, so this file and that page have to be kept in step by hand. Both
+previously named `support@profitkit.app` — a domain belonging to a different Shopify
+app in the same category, so merchants emailing support reached a competitor. Both now
+read `profitkitapp@gmail.com`; the marketing change needs deploying for the live page
+to agree with this file. `vercel.app` subdomains cannot receive mail, which is why the
+address is a mailbox rather than one on the published domain.*
