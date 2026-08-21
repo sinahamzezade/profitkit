@@ -11,7 +11,7 @@ import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { hasAnyCogsConfigured } from "../costs/cogs";
 import { resolveTierForShop, resolveTierLimits } from "../billing/tier";
-import { setGlobalCogsPercent } from "../costs/repository";
+import { listGateways, setGlobalCogsPercent } from "../costs/repository";
 import { GUIDE_URL, hasGuide, hasVideo, VIDEO_URL } from "../docs";
 import { loadShopCostConfig } from "../ingestion/dbToDomain";
 import {
@@ -88,6 +88,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const report = applyReportOptions(rows, { pageSize: 100_000 });
   const currency = anyOrder?.currencyCode ?? "USD";
 
+  /*
+   * Setup-guide progress, computed rather than stored.
+   *
+   * Each step is a thing that makes the numbers less of an estimate, and each is
+   * derived from real state — so the guide cannot claim a step is done when it
+   * isn't, and it completes itself as the merchant works.
+   *
+   * The fee step is the subtle one. A shop taking payment only through Shopify
+   * Payments needs no rule at all, so "every gateway that needs a rule has one"
+   * is the test, not "any rule exists" — otherwise the step could never complete
+   * for those shops and the guide would nag forever.
+   */
+  const gateways = await listGateways(shop.id);
+  const gatewaysNeedingRule = gateways.filter((g) => g.ordersMissingFee > 0);
+  const gatewaysWithRule = new Set(
+    config.feeRules.map((r) => r.gatewayName.toLowerCase()),
+  );
+  const setup = {
+    ordersImported: report.totalRows > 0,
+    costEstimate: hasAnyCogsConfigured(config.cogsEntries),
+    paymentFees: gatewaysNeedingRule.every((g) =>
+      gatewaysWithRule.has(g.gateway.toLowerCase()),
+    ),
+    gatewaysNeedingRule: gatewaysNeedingRule.length,
+    shippingCost: config.shipping.globalPerOrderCents != null,
+  };
+
   // The counterpoint to the loss list. Seeing only what's broken gives no sense of
   // what a healthy product looks like in this catalog.
   const earners = [...rows]
@@ -110,7 +137,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       topReason: erosion.refundsByReason[0] ?? null,
     },
     currency,
-    hasCostData: hasAnyCogsConfigured(config.cogsEntries),
+    hasCostData: setup.costEstimate,
+    setup,
     productCount: report.totalRows,
     totalMargin: report.totals.contributionMargin,
   };
@@ -145,36 +173,146 @@ function productHref(title: string) {
   return `/app/products?q=${encodeURIComponent(title)}`;
 }
 
+type SetupState = {
+  ordersImported: boolean;
+  costEstimate: boolean;
+  paymentFees: boolean;
+  gatewaysNeedingRule: number;
+  shippingCost: boolean;
+};
+
 /**
- * Where to learn the app. Sits above the numbers rather than inside them, because
- * a merchant who is lost is not reading a table — and stays permanently rather
- * than being dismissible, since the questions it answers ("why is this an
- * estimate", "how do I get real costs in") recur long after install.
+ * Setup guide, in the shape Shopify uses for onboarding: heading, one line of
+ * purpose, "n / 4 completed" with a progress bar, an overflow menu and a collapse
+ * chevron.
  *
- * Native Polaris only: this is page chrome, not the data surface. The video
- * link renders only when `VIDEO_URL` is set. See app/docs.ts.
+ * The progress is real — every step is derived from store state in the loader, so
+ * it cannot claim a step is done when it isn't, and it fills in by itself as the
+ * merchant works. The order is the order that makes the numbers trustworthy:
+ * orders arrive, then one cost estimate makes every figure meaningful, then the
+ * two costs Shopify cannot supply remove the last guesses.
+ *
+ * Collapse is session-only. Persisting it would mean either a schema column or
+ * localStorage, and localStorage read during render is a hydration mismatch —
+ * which on this app presents as a blank page, not a warning.
  */
-function HowToUse() {
+function SetupGuide({ setup }: { setup: SetupState }) {
+  const [open, setOpen] = useState(true);
+
+  const steps = [
+    {
+      done: setup.ordersImported,
+      title: "Import your orders",
+      body: "Happens on install. Profitkit reads the 60 days Shopify allows, then keeps up through webhooks.",
+      action: null,
+    },
+    {
+      done: setup.costEstimate,
+      title: "Set one cost estimate",
+      body: "Roughly what a product costs you as a share of its price. This single number turns revenue into margin across the whole catalogue.",
+      action: { label: "Set it below", href: null },
+    },
+    {
+      done: setup.paymentFees,
+      title: "Add your payment fee rates",
+      body:
+        setup.gatewaysNeedingRule === 0
+          ? "Nothing to do — Shopify reports the real fee for every gateway this store uses."
+          : `${setup.gatewaysNeedingRule} ${
+              setup.gatewaysNeedingRule === 1 ? "gateway" : "gateways"
+            } ${setup.gatewaysNeedingRule === 1 ? "reports" : "report"} no fee, so those orders currently count as free to process.`,
+      action: { label: "Open cost settings", href: "/app/settings" },
+    },
+    {
+      done: setup.shippingCost,
+      title: "Set your shipping cost",
+      body: "Shopify's API does not carry what fulfilment costs you. Until you supply it, shipping counts as nothing rather than as profit.",
+      action: { label: "Open cost settings", href: "/app/settings" },
+    },
+  ];
+
+  const done = steps.filter((s) => s.done).length;
+  const pct = Math.round((done / steps.length) * 100);
+
   return (
-    <s-section heading="New here?">
-      <s-paragraph>
-        Profitkit works out what each product actually leaves behind after cost of
-        goods, payment fees, shipping and refunds. The three-minute version:
-      </s-paragraph>
-      <s-ordered-list>
-        <s-list-item>Set one cost estimate</s-list-item>
-        <s-list-item>Read the ranking</s-list-item>
-        <s-list-item>Sharpen the costs that matter</s-list-item>
-      </s-ordered-list>
-      {/* Both links are gated. The guide URL previously pointed at profitkit.app,
-          which belongs to a different company — so this rendered a link sending
-          merchants to a competitor. Nothing renders until a confirmed domain is
-          set in app/docs.ts. */}
-      {(hasGuide || hasVideo) && (
-        <s-stack direction="inline" gap="base" alignItems="center">
+    <s-section>
+      <div className="pk-guide-head">
+        <div className="pk-guide-title">
+          <s-heading>Setup guide</s-heading>
+          <s-text tone="neutral">
+            Use this guide to get accurate profit numbers as quickly as possible.
+          </s-text>
+        </div>
+        <s-stack direction="inline" gap="small-300" alignItems="center">
+          <s-button
+            variant="tertiary"
+            icon="menu-horizontal"
+            accessibilityLabel="More actions"
+            commandFor="pk-setup-menu"
+            command="--show"
+          />
+          <s-menu id="pk-setup-menu">
+            <s-button href="/app/settings">Cost settings</s-button>
+            <s-button onClick={() => setOpen(false)}>Collapse guide</s-button>
+          </s-menu>
+          <s-button
+            variant="tertiary"
+            icon={open ? "chevron-up" : "chevron-down"}
+            accessibilityLabel={open ? "Collapse setup guide" : "Expand setup guide"}
+            onClick={() => setOpen(!open)}
+          />
+        </s-stack>
+      </div>
+
+      <div className="pk-guide-progress">
+        <span className="num pk-guide-count">
+          {done} / {steps.length} completed
+        </span>
+        {/* Bar is drawn here because Polaris has no progress component. The
+            accessible value lives on the element, not just in the fill width. */}
+        <span
+          className="pk-guide-bar"
+          role="progressbar"
+          aria-valuenow={done}
+          aria-valuemin={0}
+          aria-valuemax={steps.length}
+          aria-label={`${done} of ${steps.length} setup steps completed`}
+        >
+          <span className="pk-guide-fill" style={{ width: `${pct}%` }} />
+        </span>
+      </div>
+
+      {open && (
+        <ul className="pk-guide-steps">
+          {steps.map((step) => (
+            <li
+              key={step.title}
+              className={`pk-guide-step ${step.done ? "is-done" : ""}`}
+            >
+              <s-icon
+                type={step.done ? "check-circle-filled" : "circle"}
+                tone={step.done ? "success" : "neutral"}
+              />
+              <div className="pk-guide-step-body">
+                <p className="pk-guide-step-title">{step.title}</p>
+                <p className="pk-guide-step-note">{step.body}</p>
+                {!step.done && step.action?.href && (
+                  <s-link href={step.action.href}>{step.action.label}</s-link>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Links are gated: GUIDE_URL previously pointed at profitkit.app, which
+          belongs to a different company. Nothing renders until app/docs.ts holds a
+          confirmed domain. */}
+      {open && (hasGuide || hasVideo) && (
+        <div className="pk-guide-links">
           {hasGuide && (
             <s-link href={GUIDE_URL} target="_blank">
-              Read the walkthrough
+              Read the full walkthrough
             </s-link>
           )}
           {hasVideo && (
@@ -182,8 +320,7 @@ function HowToUse() {
               Watch the video
             </s-link>
           )}
-          <s-text tone="neutral">Opens in a new tab.</s-text>
-        </s-stack>
+        </div>
       )}
     </s-section>
   );
@@ -516,7 +653,15 @@ export default function Index() {
             Once this store has orders, your margin shows up here.
           </s-banner>
         </s-section>
-        <HowToUse />
+        <SetupGuide
+          setup={{
+            ordersImported: false,
+            costEstimate: false,
+            paymentFees: false,
+            gatewaysNeedingRule: 0,
+            shippingCost: false,
+          }}
+        />
       </s-page>
     );
   }
@@ -525,6 +670,7 @@ export default function Index() {
     hero,
     currency,
     hasCostData,
+    setup,
     productCount,
     months,
     coverage,
@@ -545,7 +691,7 @@ export default function Index() {
         See every product
       </s-button>
 
-      <HowToUse />
+      <SetupGuide setup={setup} />
       {!hasCostData && <CostEstimatePrompt hasCostData={false} />}
 
       {/* KPI strip. Four figures that frame everything below — no sparklines, no
@@ -710,6 +856,53 @@ export default function Index() {
 }
 
 const PK_STYLES = `
+  /* Setup guide. Polaris has no progress or collapse component, so the bar and
+     the step rows are drawn here; everything else uses native components. */
+  .pk-guide-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .pk-guide-title { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+
+  .pk-guide-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+  }
+  .pk-guide-count { font-size: 0.75rem; color: #6B7367; white-space: nowrap; }
+  .pk-guide-bar {
+    display: block;
+    flex: 0 1 12rem;
+    height: 6px;
+    border-radius: 3px;
+    background: #E4E9E0;
+    overflow: hidden;
+  }
+  .pk-guide-fill {
+    display: block;
+    height: 100%;
+    background: #10160F;
+    transition: width 320ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  .pk-guide-steps { list-style: none; margin: 1.25rem 0 0; padding: 0; }
+  .pk-guide-step {
+    display: flex;
+    gap: 0.7rem;
+    padding-block: 0.7rem;
+    border-top: 1px solid #E4E9E0;
+  }
+  .pk-guide-step-body { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+  .pk-guide-step-title { margin: 0; font-size: 0.875rem; font-weight: 600; color: #10160F; }
+  .pk-guide-step-note { margin: 0; font-size: 0.8rem; line-height: 1.5; color: #6B7367; max-width: 62ch; }
+  /* A finished step steps back visually so the eye lands on what is left. */
+  .pk-guide-step.is-done .pk-guide-step-title { color: #6B7367; font-weight: 500; }
+
+  .pk-guide-links { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin-top: 1rem; }
+
   .pk-cases {
     --pk-cost-1: #212B1B;
     --pk-cost-2: #47573E;
