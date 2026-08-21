@@ -222,6 +222,74 @@ export function aggregateByMonth(
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
+export interface MarginDay {
+  /** ISO date, e.g. "2026-08-21". */
+  day: string;
+  revenue: Cents;
+  contributionMargin: Cents;
+  givenBack: Cents;
+}
+
+/**
+ * Daily series for the stat sparklines.
+ *
+ * Days with no orders are filled in as zero rather than skipped: a sparkline drawn
+ * from present days only would compress a quiet week into a single step and imply
+ * trade that did not happen. `from`/`to` are inclusive and bound the fill.
+ *
+ * `givenBack` is discounts plus refunds, computed the way buildErosionReport does
+ * it so the sparkline agrees with the stat above it: order-level discount totals on
+ * the order's day, and refunds on the day they were actually refunded.
+ */
+export function aggregateByDay(
+  orders: LoadedOrder[],
+  config: ShopCostConfig,
+  from: Date,
+  to: Date,
+): MarginDay[] {
+  const key = (d: Date) => d.toISOString().slice(0, 10);
+  const byDay = new Map<string, MarginDay>();
+
+  for (
+    let cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+    cursor <= to;
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    byDay.set(key(cursor), { day: key(cursor), revenue: 0, contributionMargin: 0, givenBack: 0 });
+  }
+
+  for (const order of orders) {
+    // An order outside [from, to] is not an error — callers pass a window that may
+    // be narrower than the orders they loaded — so it is skipped, not counted.
+    const entry = byDay.get(key(order.createdAtShopify));
+    if (entry) {
+      const { lines, order: orderCost } = toDomainInputs(order, config);
+      for (const result of calculateOrderMargin(lines, orderCost)) {
+        entry.revenue += result.revenue - result.discountAllocated;
+        entry.contributionMargin += result.contributionMargin;
+      }
+      // Order-level total, matching buildErosionReport rather than the line-allocated
+      // figure. The two are not always equal — an order discount need not distribute
+      // wholly onto lines — and a sparkline that disagrees with the stat above it is
+      // worse than no sparkline.
+      entry.givenBack += order.discountTotalCents;
+    }
+
+    // Refunds land on the day the money went back, not the day the order was
+    // placed. Bucketing them by order date would draw the outflow days or weeks
+    // before it happened, which is the opposite of what this series is for.
+    for (const line of order.lines) {
+      for (const refund of line.refunds) {
+        if (refund.subtotalCents <= 0) continue;
+        const refundDay = byDay.get(key(refund.refundedAt));
+        if (refundDay) refundDay.givenBack += refund.subtotalCents;
+      }
+    }
+  }
+
+  return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
+}
+
 export interface VendorMargin {
   vendor: string;
   products: number;

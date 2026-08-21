@@ -24,11 +24,24 @@ import {
 export async function loadOrdersForMargin(
   shopId: string,
   since?: Date,
+  /**
+   * Exclusive upper bound. Only needed by the previous-period comparison, which
+   * asks for a window that ends where the current one begins; every other caller
+   * wants everything from `since` to now.
+   */
+  until?: Date,
 ): Promise<LoadedOrder[]> {
   return prisma.order.findMany({
     where: {
       shopId,
-      ...(since ? { createdAtShopify: { gte: since } } : {}),
+      ...(since || until
+        ? {
+            createdAtShopify: {
+              ...(since ? { gte: since } : {}),
+              ...(until ? { lt: until } : {}),
+            },
+          }
+        : {}),
     },
     include: MARGIN_ORDER_INCLUDE,
   });
