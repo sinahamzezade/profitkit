@@ -65,7 +65,37 @@ export function assertCanExport(limits: TierLimits): void {
  * asks the same question without depending on that inference.
  */
 export interface BillingChecker {
-  check(options: { isTest: boolean }): Promise<{ hasActivePayment: boolean }>;
+  check(options: {
+    isTest: boolean;
+  }): Promise<{ hasActivePayment: boolean; appSubscriptions?: { id: string }[] }>;
+}
+
+/**
+ * The active subscription's id, or null if the shop is not paying.
+ *
+ * Cancelling needs an id, and `check` already returns `appSubscriptions` — the
+ * interface above simply narrowed it away, because until there was a downgrade path
+ * `hasActivePayment` was the only thing anyone asked. Widened rather than replaced,
+ * and left optional, so the existing fakes in tier.test.ts keep compiling.
+ *
+ * Resolves to null on a thrown check for the same reason `resolveTierForShop` does:
+ * a billing outage should not present a merchant with a cancel button that cannot
+ * work. It errs toward showing nothing rather than toward a broken control.
+ */
+export async function resolveActiveSubscription(
+  billing?: BillingChecker,
+): Promise<{ id: string } | null> {
+  if (!billing) return null;
+  try {
+    const result = await billing.check({
+      // eslint-disable-next-line no-undef
+      isTest: process.env.NODE_ENV !== "production",
+    });
+    if (!result.hasActivePayment) return null;
+    return result.appSubscriptions?.[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

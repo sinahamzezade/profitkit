@@ -94,13 +94,6 @@ depends on it.
 
 ## Known gaps, in the order they'd hurt
 
-0. **No way to cancel Pro from inside the app.** App Store requirement 1.2.3 —
-   "Allow pricing plan changes" — says merchants must upgrade *and downgrade*
-   without contacting support or reinstalling. `/app/upgrade` is one-way; nothing
-   in `app/routes/` or `app/billing/` cancels. Shopify's own Settings → Billing can
-   cancel an app subscription, which may satisfy a reviewer in practice, but the
-   requirement reads as an obligation on the app. Scoped below.
-
 1. **A duplicate Railway project is still running in an unrelated account.**
    Project `47cf1fc3`, under a personal Railway account that is *not* the Profitkit
    one — the first provisioning landed there before the accounts were untangled. It
@@ -167,48 +160,39 @@ depends on it.
    confirm, so it wants a session in the admin with eyes on each page rather than a
    find-and-replace.
 
-## Scope: cancelling Pro from inside the app
+## Cancelling Pro, and why it is so little code
 
-Closes gap 0 above. Smaller than it looks, because **the app stores no tier of its
-own.** `resolveTierForShop` asks Shopify's Billing API on every request, so the
-moment a subscription is cancelled the next page load resolves to free on its own.
-There is no local row to update, no webhook to handle, and no reconciliation step —
-which is exactly why this is worth doing properly rather than deferring.
+Requirement 1.2.3 wants plan changes in both directions without contacting support.
+Built on 2026-08-22: `/app/downgrade` plus a Plan section on the cost settings page
+that shows the current plan and offers the opposite move.
 
-**What has to change**
+**The app stores no tier**, which is the whole reason this is ~90 lines.
+`resolveTierForShop` asks the Billing API on every request, so the moment Shopify
+records the cancellation the next page load resolves to free by itself. No local row
+to update, no webhook to handle, no reconciliation.
 
-1. `BillingChecker` in `app/billing/tier.ts` narrows `check()` to
-   `{ hasActivePayment }`. Cancelling needs a subscription id, and
-   `BillingCheckResponseObject` already carries `appSubscriptions: AppSubscription[]`
-   with an `id` on each. Widen the interface to surface it. The narrowing was
-   deliberate — keep it as narrow as the new job allows, so the fake in
-   `tier.test.ts` stays cheap.
-2. A `resolveActiveSubscription(billing)` helper returning `{ id, name } | null`.
-   Cancelling needs the id; the UI needs the name to say what is being cancelled.
-3. `app/routes/app.downgrade.tsx`, mirroring `app.upgrade.tsx`: an action calling
-   `billing.cancel({ subscriptionId, isTest: process.env.NODE_ENV !== "production" })`.
-   **`isTest` must be derived the same way as in `upgrade`** — a mismatch between how
-   a subscription was created and how it is cancelled is the obvious way to get a
-   cancel that silently does nothing.
-4. `prorate` — decide deliberately. Passing `true` credits the merchant the unused
-   part of the cycle and deducts it from the Partner account. Leaving it off is the
-   default and is defensible for a $29 monthly plan. Either way, say which in the
-   confirmation copy, because the merchant will find out at the next statement.
-5. UI. Cost settings is the right home — it is where plan state already belongs, and
-   it keeps the destructive action off the overview. Needs a confirmation step: state
-   what is lost (history beyond the free window, the accountant export) and that the
-   data is not deleted, only hidden behind the window again.
+Three things in it are deliberate:
 
-**What must not change**
+- **`isTest` is derived exactly as in the upgrade route.** A test subscription
+  cancelled as a live one — or the reverse — finds no target and fails without
+  erroring usefully. The two must agree.
+- **`prorate: false`, stated rather than inherited.** Proration would credit the
+  merchant the unused period and deduct it from the Partner account. Off is Shopify's
+  default and normal for a $29 monthly plan, and the UI says so, because otherwise a
+  merchant learns it from a statement.
+- **No active subscription is a success, not an error.** A double-submit, or a
+  merchant who cancelled in Shopify's own settings first, both land on
+  `{ok: true, alreadyFree: true}`. The requested state is the actual state.
 
-The tier query bound. A cancelled shop drops back to the free window because
-`resolveTierLimits` says so, not because a route decides to show less — the bound is
-applied before any read and stays that way.
+The tier query bound was not touched. A cancelled shop drops back to the 90-day
+window because `resolveTierLimits` says so, before any read — not because a route
+chose to render less.
 
-**Testing.** The action itself is unit-testable against a fake `billing` today. The
-live half — cancel, confirm `hasActivePayment` flips false, confirm the window
-narrows and `/app/export.csv` returns 402 again — is already item 5 of
-`VERIFICATION.md` and is blocked on distribution along with the rest of billing.
+Unit-tested against a fake `billing` (4 cases, including a thrown check and an
+active payment Shopify names no subscription for). The live half — cancel, confirm
+`hasActivePayment` flips false, confirm the window narrows and `/app/export.csv`
+returns 402 again — is item 5 of `VERIFICATION.md`, now unblocked, and must be run
+against `shopify app dev` rather than production. See the note there on `isTest`.
 
 ## Decisions worth not re-litigating
 

@@ -22,6 +22,8 @@ import {
   setGlobalShippingCostCents,
   setVendorCogsPercent,
 } from "../costs/repository";
+import { PRO_PLAN } from "../billing/plan";
+import { resolveTierForShop } from "../billing/tier";
 import {
   formatMoneyInput,
   formatPercent,
@@ -31,7 +33,7 @@ import {
 } from "../costs/settingsForm";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
 
   const shop = await prisma.shop.findUnique({ where: { domain: session.shop } });
   if (!shop) return { ready: false as const };
@@ -53,8 +55,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  /*
+   * Plan state belongs on this page: it is where a merchant already comes to change
+   * what the app costs them, and App Store requirement 1.2.3 wants both directions
+   * reachable without contacting support. Resolved from the Billing API rather than
+   * stored, like everywhere else that asks.
+   */
+  const tier = await resolveTierForShop(session.shop, billing);
+
   return {
     ready: true as const,
+    tier,
+    proPrice: PRO_PLAN.amount,
     currency: anyOrder?.currencyCode ?? "USD",
     globalCogsPercent: formatPercent(globalEntry?.costPercent),
     vendors: vendors.map((v) => ({ ...v, percent: vendorPercents[v.vendor] ?? "" })),
@@ -446,7 +458,82 @@ function SettingsForm({ data }: { data: ReadyData }) {
           Save shipping cost
         </s-button>
       </s-section>
+
+      <PlanSection tier={data.tier} proPrice={data.proPrice} />
     </s-page>
+  );
+}
+
+/**
+ * Plan, and the control to change it in either direction.
+ *
+ * App Store requirement 1.2.3: a merchant must be able to upgrade *and* downgrade
+ * without contacting support or reinstalling. The app held only the upgrade half.
+ *
+ * The copy states the two things a merchant would otherwise find out afterwards:
+ * cancelling is not deletion — the orders stay and the window narrows back to 90
+ * days — and there is no refund of the current period, because the cancellation is
+ * sent without proration. Both are decisions made in app/routes/app.downgrade.tsx
+ * and this is where they get said out loud.
+ */
+function PlanSection({ tier, proPrice }: { tier: "free" | "pro"; proPrice: number }) {
+  const change = useFetcher<{ error?: string; detail?: string | null; ok?: boolean }>();
+  const busy = change.state !== "idle";
+
+  return (
+    <s-section heading="Plan">
+      {change.data?.error && (
+        <s-banner tone="critical">
+          {change.data.error}
+          {change.data.detail ? ` ${change.data.detail}` : ""}
+        </s-banner>
+      )}
+
+      {tier === "pro" ? (
+        <>
+          <s-paragraph>
+            You&apos;re on <s-text type="strong">Pro</s-text>, ${proPrice} a month —
+            full history and the accountant export.
+          </s-paragraph>
+          <s-paragraph>
+            <s-text tone="neutral">
+              Cancelling keeps every order Redline has already collected. The view
+              narrows back to the last 90 days and the export stops; nothing is
+              deleted, and upgrading again restores the full history. You keep Pro
+              until the period you have paid for ends — there is no partial refund.
+            </s-text>
+          </s-paragraph>
+          <s-button
+            variant="secondary"
+            tone="critical"
+            {...(busy ? { loading: true } : {})}
+            onClick={() => change.submit({}, { method: "POST", action: "/app/downgrade" })}
+          >
+            Cancel Pro
+          </s-button>
+        </>
+      ) : (
+        <>
+          <s-paragraph>
+            You&apos;re on <s-text type="strong">Free</s-text> — every product&apos;s
+            margin for the last 90 days.
+          </s-paragraph>
+          <s-paragraph>
+            <s-text tone="neutral">
+              Pro is ${proPrice} a month and stops your history expiring, plus an
+              accountant-ready export of all of it.
+            </s-text>
+          </s-paragraph>
+          <s-button
+            variant="primary"
+            {...(busy ? { loading: true } : {})}
+            onClick={() => change.submit({}, { method: "POST", action: "/app/upgrade" })}
+          >
+            Upgrade to Pro
+          </s-button>
+        </>
+      )}
+    </s-section>
   );
 }
 
