@@ -23,7 +23,7 @@ export function handleCustomerDataRequest(): CustomerDataRequestResult {
   return {
     storesPersonalData: false,
     note:
-      "Profitkit stores order financials only — line totals, discounts, refunds and " +
+      "Redline stores order financials only — line totals, discounts, refunds and " +
       "fees. It holds no customer name, email, address, phone or customer identifier, " +
       "so there is no personal data to return for this customer.",
   };

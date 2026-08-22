@@ -1,7 +1,7 @@
 /**
  * The finding, drawn rather than iconed.
  *
- * This is the same two-stroke thesis as the Profitkit mark: a flat revenue rule,
+ * This is the same two-stroke thesis as the Redline mark: a flat revenue rule,
  * and the margin line beneath it ending well below where it started. Scaled up as
  * media for the lead card, on ledger paper, so the empty right side of the old
  * sentence-in-a-box has something that is the product rather than a stock chart

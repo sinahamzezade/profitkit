@@ -1,5 +1,5 @@
 {
-  "name": "profikit",
+  "name": "redline",
   "private": true,
   "scripts": {
     "build": "react-router build",

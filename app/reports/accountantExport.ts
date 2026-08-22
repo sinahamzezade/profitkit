@@ -63,5 +63,5 @@ export function buildAccountantCsv(
 export function accountantCsvFilename(shopDomain: string, now: Date): string {
   const store = shopDomain.replace(/\.myshopify\.com$/, "");
   const stamp = now.toISOString().slice(0, 10);
-  return `profitkit-margin-${store}-${stamp}.csv`;
+  return `redline-margin-${store}-${stamp}.csv`;
 }

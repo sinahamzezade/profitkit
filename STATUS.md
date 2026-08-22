@@ -1,4 +1,4 @@
-# Profitkit — build status
+# Redline — build status
 
 `../HANDOVER.md` describes the state **before** this build and is now historical.
 This file is the current picture.

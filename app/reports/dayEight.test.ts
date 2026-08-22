@@ -111,6 +111,6 @@ describe("accountant export", () => {
   it("names the file after the store and date", () => {
     expect(
       accountantCsvFilename("first-test-zenmt2u1.myshopify.com", new Date("2026-08-20T00:00:00Z")),
-    ).toBe("profitkit-margin-first-test-zenmt2u1-2026-08-20.csv");
+    ).toBe("redline-margin-first-test-zenmt2u1-2026-08-20.csv");
   });
 });

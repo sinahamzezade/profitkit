@@ -1,5 +1,5 @@
 /*
- * Rasterises public/brand/profitkit-mark.svg into the PNG sizes Shopify and the
+ * Rasterises public/brand/redline-mark.svg into the PNG sizes Shopify and the
  * embedded app need. The SVG is the source of truth; run this after editing it.
  *
  *   node scripts/build-brand.mjs
@@ -35,13 +35,13 @@ try {
  * the same vector so none of them can drift.
  */
 const SIZES = [
-  { px: 1200, name: "profitkit-icon-1200.png", note: "Shopify App Store listing" },
-  { px: 512, name: "profitkit-icon-512.png", note: "embedded app / general use" },
-  { px: 192, name: "profitkit-icon-192.png", note: "small surfaces" },
-  { px: 32, name: "profitkit-icon-32.png", note: "browser tab" },
+  { px: 1200, name: "redline-icon-1200.png", note: "Shopify App Store listing" },
+  { px: 512, name: "redline-icon-512.png", note: "embedded app / general use" },
+  { px: 192, name: "redline-icon-192.png", note: "small surfaces" },
+  { px: 32, name: "redline-icon-32.png", note: "browser tab" },
 ];
 
-const svgPath = path.join(brandDir, "profitkit-mark.svg");
+const svgPath = path.join(brandDir, "redline-mark.svg");
 const svg = await readFile(svgPath);
 
 await mkdir(brandDir, { recursive: true });

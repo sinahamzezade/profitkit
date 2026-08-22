@@ -12,8 +12,11 @@
 /**
  * Written walkthrough.
  *
- * Verified live: `GET https://profitkit.vercel.app/guide` returns 200 and the page
- * titles itself "How to use Profitkit".
+ * Verified live: `GET https://profitkit.vercel.app/guide` returns 200. The page now
+ * titles itself "How to use Redline" in source, but the deployed copy still says
+ * Profitkit until the marketing site is redeployed — that site publishes by CLI, not
+ * on push. The URL keeps the old brand because the Vercel subdomain is a real
+ * resource and renaming it would break this link.
  *
  * Two earlier states, both worth remembering:
  *

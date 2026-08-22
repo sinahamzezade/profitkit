@@ -84,7 +84,7 @@ export async function resolveTierForShop(
   // subscription. Deliberately ignored outside development: an env var must never
   // be able to hand out a paid tier on a deployed app.
   // eslint-disable-next-line no-undef
-  if (process.env.NODE_ENV !== "production" && process.env.PROFITKIT_FORCE_TIER === "pro") {
+  if (process.env.NODE_ENV !== "production" && process.env.REDLINE_FORCE_TIER === "pro") {
     return "pro";
   }
 

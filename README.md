@@ -1,4 +1,4 @@
-# Profitkit
+# Redline
 
 A Shopify app that answers one question: **which products lose you money.**
 

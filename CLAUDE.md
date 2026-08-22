@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Profitkit — repository root
+# Redline — repository root
 
 This directory is the repository root. Run every npm script from here.
 
@@ -10,8 +10,31 @@ npm run reconcile -- first-test-zenmt2u1.myshopify.com
 shopify app dev --config profitkit
 ```
 
-Note the directory name is `profikit`, missing a `t`. The app, the product and the
-Shopify config are all spelled `profitkit`; only the folder is misspelled.
+## The product is Redline. The infrastructure is still called profitkit
+
+Renamed from Profitkit because three apps in the same category had near-identical
+names — a competitor at `profitkit.app`, and "Profiti: Profit Analytics" which already
+ranked for a Profitkit search. Shopify's own rule is that a name must not be "similar
+enough that merchants could mistake it for another app", so the collision was a
+submission risk, not just a marketing one.
+
+**Only the brand was renamed.** Every string below names a live external resource and
+would break something if edited to match:
+
+| Still says `profitkit` | Why |
+|---|---|
+| `shopify.app.profitkit.toml`, `--config profitkit` | Config selector. Every command and hook passes it |
+| `profitkit-app-production-b46d.up.railway.app` | The deployed app URL, in `application_url` |
+| Railway project / service, `profitkit-postgres`, the `profitkit` database | Live infrastructure |
+| `profitkitapp@gmail.com` | A real mailbox — the support address and the Partner account |
+| `profitkit.vercel.app` | The deployed marketing site and privacy policy URL |
+
+So a bare `profitkit` in this repo is infrastructure, and `Profitkit` capitalised is a
+leftover brand reference that should have become Redline. The folder name is
+`profikit`, missing a `t`, and predates all of it.
+
+The Partner Dashboard display name comes from `name` in the toml and updates on
+`shopify app deploy` — it is set to Redline but **not yet deployed**.
 
 ## Which config the CLI uses
 
@@ -35,9 +58,9 @@ left alone rather than touched without asking.
 | `LISTING.md` | App Store copy, plus claims deliberately not made |
 | `PRIVACY.md` | Privacy policy (needs publishing at a public URL) |
 | `HANDOVER.md` | Pre-build planning notes. **Historical** — superseded by `STATUS.md` |
-| `profitkit-10-day-roadmap.md` | Original build plan, also historical |
+| `redline-10-day-roadmap.md` | Original build plan, also historical |
 | `shopify-margin-app-brief.md` | Market research and positioning |
-| `profitkit-field-audit.graphql` | The Admin API field-availability audit |
+| `redline-field-audit.graphql` | The Admin API field-availability audit |
 
 The `marketing/` landing page lives one directory up, outside this repository. It has
 its own git history and its own `.env.local`, so it is deliberately not tracked here.

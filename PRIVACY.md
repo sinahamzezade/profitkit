@@ -1,15 +1,15 @@
-# Privacy Policy — Profitkit
+# Privacy Policy — Redline
 
 **Last updated:** 20 August 2026
 
-Profitkit is a profit-analysis app for Shopify stores. This policy describes what
+Redline is a profit-analysis app for Shopify stores. This policy describes what
 it stores, why, and for how long.
 
 ---
 
-## What Profitkit stores
+## What Redline stores
 
-Profitkit analyses the money in your orders, not the people who placed them.
+Redline analyses the money in your orders, not the people who placed them.
 
 **From your store, it stores:**
 
@@ -29,7 +29,7 @@ Profitkit analyses the money in your orders, not the people who placed them.
 - Payment card details or any payment credentials
 - IP addresses or browsing behaviour of your shoppers
 
-Profitkit does not request these fields from Shopify's API at all. This is
+Redline does not request these fields from Shopify's API at all. This is
 enforced by an automated test that fails if a customer-identifying field is ever
 added to the database schema.
 
@@ -42,11 +42,11 @@ Four read-only permissions:
 - `read_inventory` — Shopify's per-variant unit cost field
 - `read_returns` — the reason recorded against a return, where one exists
 
-Profitkit has no write access. It cannot change anything in your store.
+Redline has no write access. It cannot change anything in your store.
 
 ## Access to protected customer data
 
-Shopify classifies order data as protected customer data. Profitkit requests
+Shopify classifies order data as protected customer data. Redline requests
 access to it in order to read order financials. It does not request access to
 protected *customer fields* — name, email, phone, address — because it does not
 use them.
@@ -60,15 +60,15 @@ never shared with third parties, and never used to train anything.
 ## Where data is held
 
 Order and product records are stored in a Postgres database operated solely for
-running Profitkit, and are transmitted over TLS.
+running Redline, and are transmitted over TLS.
 
 ## Retention and deletion
 
 - **While installed:** records are retained so history accumulates over time.
 - **On uninstall:** Shopify sends a shop redaction request 48 hours later. On
-  receiving it, Profitkit deletes every record belonging to your store —
+  receiving it, Redline deletes every record belonging to your store —
   products, orders, refunds, your cost settings, and the session — permanently.
-- **Customer data requests and customer redaction:** Profitkit responds to both,
+- **Customer data requests and customer redaction:** Redline responds to both,
   reporting that it holds no personal data for the customer, because it does not.
 
 To request deletion sooner, uninstall the app or email the address below.

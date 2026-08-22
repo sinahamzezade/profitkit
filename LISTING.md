@@ -1,13 +1,26 @@
-# App Store listing — Profitkit
+# App Store listing — Redline
 
 Draft for submission. Every claim here is checked against what the app actually
 does; see the notes at the bottom for the ones that were tempting but false.
 
 ---
 
-## App name
+## App name (30 char limit)
 
-**Profitkit — True Profit Per Product**
+**Redline**
+
+Seven characters, no descriptor. The previous entry, "Profitkit — True Profit Per
+Product", was 35 and would have been rejected — Shopify caps the name at 30 and wants
+a distinctive brand leading, not a keyword string.
+
+Renamed away from Profitkit because three apps in this category had near-identical
+names: a different company's tool at `profitkit.app`, and "Profiti: Profit Analytics",
+which already ranked for a Profitkit search. Shopify's rule is that a name must not be
+"similar enough that merchants could mistake it for another app", so the collision was
+a submission risk rather than only a marketing one.
+
+Redline also carries the product: to be in the red, and to redline a problem. It is
+the one accent colour this app uses.
 
 ## Tagline (100 char limit)
 
@@ -15,7 +28,7 @@ does; see the notes at the bottom for the ones that were tempting but false.
 
 ## Short description
 
-Revenue isn't profit. Profitkit subtracts what Shopify doesn't — cost of goods,
+Revenue isn't profit. Redline subtracts what Shopify doesn't — cost of goods,
 payment fees, the gap between shipping charged and shipping paid, discounts and
 refunds — and tells you which products cost you money.
 
@@ -28,7 +41,7 @@ Cost of goods sits in a spreadsheet, payment fees land in a payout summary,
 shipping costs never appear at all, and refunds quietly undo weeks of margin.
 Add them up and the ranking changes.
 
-Profitkit is a P&L engine, not a dashboard. It answers one question: **which
+Redline is a P&L engine, not a dashboard. It answers one question: **which
 products lose you money, and why.**
 
 **Three views. One screen.**
@@ -45,7 +58,7 @@ products lose you money, and why.**
 **You don't need your costs ready.**
 
 Most merchants have never entered cost of goods, and an app that opens with
-"enter the cost for your 62 products" is an app you close. Profitkit starts with
+"enter the cost for your 62 products" is an app you close. Redline starts with
 one number — roughly what percentage of price a product costs you — and gives
 you a complete answer in under a minute. Refine by vendor when you want to.
 Import exact costs from a spreadsheet when you're ready. Every estimated figure
@@ -54,12 +67,12 @@ is labelled as an estimate, so you always know which numbers are firm.
 **Honest about what it can't know.**
 
 Shopify's API doesn't expose what shipping actually cost you, and only reports
-payment fees for Shopify Payments. Profitkit models those instead of pretending
+payment fees for Shopify Payments. Redline models those instead of pretending
 otherwise — and tells you which figures are modelled.
 
 **It never sees your customers.**
 
-Profitkit reads the money on an order, not the person who placed it. Customer
+Redline reads the money on an order, not the person who placed it. Customer
 names, email addresses, phone numbers and postal addresses are never requested
 from Shopify and never stored — and that isn't a promise, it's a test: the suite
 fails if a customer-identifying field is ever added to the database schema.
@@ -67,10 +80,10 @@ fails if a customer-identifying field is ever added to the database schema.
 Read-only, four permissions, no write access of any kind. It cannot change
 anything in your store.
 
-This is also why Profitkit doesn't connect to Meta, Google or TikTok. Attributing
+This is also why Redline doesn't connect to Meta, Google or TikTok. Attributing
 profit to an ad campaign means tracking which shopper came from which ad, and
 that requires exactly the customer-level data above. Ad spend is a real cost, and
-a real omission — Profitkit measures the costs sitting inside your orders, and
+a real omission — Redline measures the costs sitting inside your orders, and
 leaves your shoppers out of it.
 
 ## Pricing
@@ -79,7 +92,7 @@ leaves your shoppers out of it.
 the same engine, the same cause attribution, all three views, no row limits.
 
 **Pro, $29/month** — **Your history stops expiring.** Shopify's API only hands
-over 60 days of orders when you install; from that day on, Profitkit keeps every
+over 60 days of orders when you install; from that day on, Redline keeps every
 order it sees. On Free you always see the most recent 90 days and older months
 fall off the back. On Pro nothing falls off — month six shows you six months,
 month eighteen shows eighteen, and seasonal comparison becomes possible for the
@@ -138,7 +151,7 @@ Written down so nobody adds them later without checking:
   Returns flow carry a reason; refunds issued from the order page carry none.
 - **"No protected customer data."** Tempting next to the privacy bullet, and
   false. Shopify classifies *order data itself* as protected customer data, and
-  Profitkit requests access to it — that is the whole app. The true and narrower
+  Redline requests access to it — that is the whole app. The true and narrower
   claim is the one made above: no protected customer *fields* — name, email,
   phone, address — are requested or stored. Do not widen it. `PRIVACY.md` states
   the distinction the same way, and a reviewer will read both.

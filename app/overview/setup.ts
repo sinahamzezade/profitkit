@@ -21,7 +21,7 @@ export function setupSteps(setup: SetupState) {
     {
       done: setup.ordersImported,
       title: "Import your orders",
-      body: "Happens on install. Profitkit reads the 60 days Shopify allows, then keeps up through webhooks.",
+      body: "Happens on install. Redline reads the 60 days Shopify allows, then keeps up through webhooks.",
       action: null,
     },
     {
