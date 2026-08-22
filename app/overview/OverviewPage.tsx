@@ -80,7 +80,7 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
         : `Nothing sold at a loss. Best ${moneyRows.length} of ${productCount} sold.`;
 
   return (
-    <s-page heading="Profit overview" inlineSize="large">
+    <s-page heading="Profit overview">
       <style>{PK_STYLES}</style>
 
       {!setupDone && <SetupGuide setup={setup} />}
