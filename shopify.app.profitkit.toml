@@ -2,7 +2,7 @@
 
 client_id = "5243e677cda81e9c8dfa6e51b776a966"
 name = "Redline"
-application_url = "https://profitkit-app-production-b46d.up.railway.app"
+application_url = "https://app.redlineapp.tech"
 embedded = true
 
 [build]
@@ -52,6 +52,9 @@ scopes = "read_orders,read_products,read_inventory,read_returns"
 
 [auth]
 redirect_urls = [
+  "https://app.redlineapp.tech/auth/callback",
+  "https://app.redlineapp.tech/auth/shopify/callback",
+  "https://app.redlineapp.tech/api/auth/callback",
   "https://profitkit-app-production-b46d.up.railway.app/auth/callback",
   "https://profitkit-app-production-b46d.up.railway.app/auth/shopify/callback",
   "https://profitkit-app-production-b46d.up.railway.app/api/auth/callback",

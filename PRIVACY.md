@@ -89,11 +89,14 @@ change affects what is stored, communicated to installed merchants.
 
 ---
 
-*Deployment note: published at **https://profitkit.vercel.app/privacy**, which is the
+*Deployment note: published at **https://redlineapp.tech/privacy**, which is the
 URL to enter in the App Store listing. The rendered page lives in the separate
 `marketing/` project, so this file and that page have to be kept in step by hand. Both
 previously named `support@profitkit.app` — a domain belonging to a different Shopify
 app in the same category, so merchants emailing support reached a competitor. Both now
 read `profitkitapp@gmail.com`; the marketing change needs deploying for the live page
-to agree with this file. `vercel.app` subdomains cannot receive mail, which is why the
-address is a mailbox rather than one on the published domain.*
+to agree with this file. The address is a Gmail rather than one on the published
+domain because the published domain used to be a `vercel.app` subdomain, which cannot
+receive mail. `redlineapp.tech` can — Cloudflare Email Routing forwards to the same
+inbox — so this should become `support@redlineapp.tech` before submission, in both
+places at once.*

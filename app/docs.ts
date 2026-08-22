@@ -12,13 +12,11 @@
 /**
  * Written walkthrough.
  *
- * Verified live: `GET https://profitkit.vercel.app/guide` returns 200. The page now
- * titles itself "How to use Redline" in source, but the deployed copy still says
- * Profitkit until the marketing site is redeployed — that site publishes by CLI, not
- * on push. The URL keeps the old brand because the Vercel subdomain is a real
- * resource and renaming it would break this link.
+ * Now on the registered domain rather than the Vercel preview subdomain that
+ * preceded it. `redlineapp.tech` is the marketing site; `app.redlineapp.tech` is
+ * this app on Railway.
  *
- * Two earlier states, both worth remembering:
+ * Three earlier states, all worth remembering, because two of them were live:
  *
  *  - It read "https://profitkit.app/guide", a domain lifted from this repo's own
  *    docs and never checked. profitkit.app is live and belongs to a *different*
@@ -27,12 +25,12 @@
  *  - It was then blank, because the page existed in ../marketing but that route
  *    404ed in production. The site turned out to be deployed by CLI rather than from
  *    git, so pushing the page never published it.
+ *  - It then read "https://profitkit.vercel.app/guide", correct but temporary.
  *
- * The domain is a Vercel preview subdomain and therefore temporary. When a custom
- * domain is registered this needs updating, and the check is the same one both
- * times: request the URL and read the status code.
+ * The check that settles it is the same one every time, and it is the reason two of
+ * those three were caught: request the URL and read the status code.
  */
-export const GUIDE_URL = "https://profitkit.vercel.app/guide";
+export const GUIDE_URL = "https://redlineapp.tech/guide";
 
 /**
  * Video walkthrough. Empty until a real video exists.

@@ -126,13 +126,15 @@ first time. Includes an accountant-ready CSV export of the whole history.
 
 ## Support
 
-- Privacy policy: **https://profitkit.vercel.app/privacy** — published and verified
+- Privacy policy: **https://redlineapp.tech/privacy** — published and verified
   live. `profitkit.app` is **not ours**; it belongs to a different Shopify app in the
   same category, and every reference to it here was wrong.
 - Support email: **profitkitapp@gmail.com** — the mailbox that already owns the Partner
-  and Railway accounts, so it demonstrably receives mail. Chosen over an address on the
-  published domain because `vercel.app` subdomains cannot take mail at all. Worth
-  revisiting if a custom domain is registered.
+  and Railway accounts, so it demonstrably receives mail. It was chosen because the
+  published domain was then a `vercel.app` subdomain, which cannot take mail at all.
+  **That constraint is gone:** `redlineapp.tech` is registered and its DNS is on
+  Cloudflare, whose Email Routing forwards `support@redlineapp.tech` to this same
+  inbox for free. Switch before submitting.
 
 ---
 
@@ -181,11 +183,15 @@ Written down so nobody adds them later without checking:
 
 ## Before submission
 
-- [x] Support address decided: `profitkitapp@gmail.com`, an existing mailbox.
-      *Not `support@profitkit.app` — someone else's domain — and not anything at
-      `profitkit.vercel.app`, which cannot take mail.*
+- [ ] Support address. Currently `profitkitapp@gmail.com`, an existing mailbox, and
+      **reopened by the domain purchase.**
+      *Not `support@profitkit.app` — someone else's domain. The old reasoning was
+      that the published domain was a `vercel.app` subdomain, which cannot take mail
+      at all; `redlineapp.tech` can, via Cloudflare Email Routing, which is free and
+      forwards to the same inbox. `support@redlineapp.tech` reads better on a listing
+      than a Gmail address and costs nothing to set up.*
 - [x] Publish the privacy policy at a public URL.
-      *https://profitkit.vercel.app/privacy, fetched and confirmed live.*
+      *https://redlineapp.tech/privacy, fetched and confirmed live.*
 - [x] **Deploy the marketing site** so the live privacy page and footer show the new
       address.
       *Deployed. `/privacy` serves `profitkitapp@gmail.com`, `/guide` returns 200, and
