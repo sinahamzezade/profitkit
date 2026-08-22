@@ -41,7 +41,17 @@ const SIZES = [
   { px: 32, name: "redline-icon-32.png", note: "browser tab" },
 ];
 
-const svgPath = path.join(brandDir, "redline-mark.svg");
+/*
+ * The square icon, not the mark.
+ *
+ * `redline-mark.svg` is transparent with its leg set to `currentColor`, which is what
+ * makes it usable inline on either background — and exactly what makes it wrong here:
+ * rasterised standalone there is no inherited colour, so the leg comes out black or
+ * missing, and its viewBox is the glyph's own bounding box rather than a square, so
+ * every size would need its own padding decision. `redline-icon.svg` is 256x256 with
+ * the glyph already centred, so all four sizes are a straight resize.
+ */
+const svgPath = path.join(brandDir, "redline-icon.svg");
 const svg = await readFile(svgPath);
 
 await mkdir(brandDir, { recursive: true });

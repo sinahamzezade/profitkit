@@ -1,32 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Profitkit">
-  <!--
-    Source of truth for the Profitkit mark. Raster sizes are generated from this
-    file by scripts/build-brand.mjs — never hand-edit the PNGs.
+<!--
+  The Redline monogram, for use on any background.
 
-    The glyph is the product's thesis in two strokes: a flat revenue rule, and the
-    margin line beneath it ending well below where it started.
+  Derived from redline-mark-exact-trace.svg, which cannot be used as-is: its leg is
+  #F5F6F7, so the glyph is invisible on a light background — and light is the site's
+  default. Here the leg is `currentColor`, so it inherits ink on paper and paper on
+  ink from one file, and the red arm stays red either way.
 
-    Tuned for 32px, not for 512px. The first version had a three-kink polyline and
-    2.6px strokes inside a 54%-wide safe area; at nav size the two lines merged
-    into a smudge. This one spans 67% of the box, carries 3.6px strokes, keeps a
-    5.5-unit gap so the strokes can never touch, and has a single kink — enough to
-    read as a chart, few enough to survive being 32 pixels wide.
+  Colours snapped to the site tokens. The traces carried #E51E25 red and #161A21 ink,
+  sampled from a raster, which are near-duplicates of the loss token (#d41820) and the
+  ink token (#0e1116). Three reds differing by a few points is the palette drift this
+  project has already had to unpick once.
 
-    Square with no corner radius, per design-system MASTER.md. Shopify masks the
-    icon on some surfaces; at this span a 14% corner radius clips nothing.
-  -->
-  <rect width="48" height="48" fill="#0E1116"/>
+  Note for editors: an XML comment cannot contain a double hyphen, so CSS custom
+  properties are named in prose here rather than written out. Writing one literally
+  makes this file malformed and it silently stops rasterising.
 
-  <!-- Revenue: flat, unbothered, the number everyone already has. -->
-  <path d="M8 17h32" stroke="#F5F7FA" stroke-width="3.6" stroke-linecap="butt"/>
-
-  <!-- Margin: same period, one turn, ending far below the rule. -->
-  <path
-    d="M8 22.5 L22 27 L40 36.5"
-    fill="none"
-    stroke="#D41820"
-    stroke-width="3.6"
-    stroke-linejoin="miter"
-    stroke-linecap="butt"
-  />
+  viewBox is the glyph's own bounding box rather than the trace's 234x237 canvas, so
+  the mark fills whatever box it is given instead of carrying invisible padding.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="47 66 142 106" fill="none">
+  <!-- The arm: a flat red rule, the redline itself. -->
+  <path fill="#D41820" d="M 50,66 L 75,90 L 151,91 L 157,100 L 155,105 L 167,123 L 179,107 L 180,91 L 175,79 L 158,67 Z"/>
+  <!-- The leg: a peak that reads as both the R's stem and a margin line. -->
+  <path fill="currentColor" d="M 47,172 L 80,172 L 127,130 L 130,131 L 161,172 L 189,172 L 147,112 L 113,112 Z"/>
 </svg>

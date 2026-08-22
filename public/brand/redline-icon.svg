@@ -1,0 +1,25 @@
+<!--
+  The app icon: white monogram on solid red, square.
+
+  Square on purpose. The traces are 234x237, and every place this ends up — the
+  Shopify App Store tile, the admin nav, a browser tab, an apple-touch-icon — wants a
+  square, so a 3px-off canvas would either letterbox or stretch depending on who
+  rasterised it. The glyph is centred here once, at 1.2x in a 256 box, leaving roughly
+  a sixth of the width as breathing room on each side so it survives being masked into
+  a circle or a squircle.
+
+  Red rather than the dark variant, tested at 32px: all three read, but a solid red
+  tile is the one that is findable in a grid of app icons, and the product is called
+  Redline. The dark variant is the alternative if the App Store tile ever needs to sit
+  quieter — swap the two fills and drop the background.
+
+  Both shapes are the same white, as in the supplied red trace: the arm and the leg
+  are told apart by the gap between them, not by colour.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" fill="#D41820"/>
+  <g transform="translate(-13.6 -14.8) scale(1.2)" fill="#F5F7FA">
+    <path d="M 50,66 L 75,90 L 151,91 L 157,100 L 155,105 L 167,123 L 179,107 L 180,91 L 175,79 L 158,67 Z"/>
+    <path d="M 47,172 L 80,172 L 127,130 L 130,131 L 161,172 L 189,172 L 147,112 L 113,112 Z"/>
+  </g>
+</svg>
