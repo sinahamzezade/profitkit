@@ -188,6 +188,16 @@ describe("loss driver attribution", () => {
     expect(leader.explanation).toBe(`This product lost $340.00 in 90 days. ${leader.diagnosis}`);
   });
 
+  it("says '1 day', not '1 days', on a one-day window", () => {
+    // A fresh install genuinely has a one-day window until history accumulates, so
+    // this is the first sentence a new merchant reads. Every other test here uses 60
+    // or 90 days, which is why "1 days" survived to production.
+    const rows = [...normalCatalog(), row({ productId: "a", contributionMargin: -34000 })];
+    const leader = buildHeroReport(rows, { periodDays: 1, currency: "USD" }).losers[0];
+    expect(leader.explanation).toContain("in 1 day.");
+    expect(leader.explanation).not.toContain("1 days");
+  });
+
   it("reports loss per unit, which separates a broken product from a busy one", () => {
     const rows = [
       ...normalCatalog(),

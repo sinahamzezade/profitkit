@@ -3,6 +3,7 @@ import {
   type LossDriver,
   type LossLeader,
 } from "../reports/lossLeaders";
+import { dayWord } from "../text";
 import { LeadMedia } from "./LeadMedia";
 import { OVERVIEW_PREVIEW } from "./types";
 
@@ -49,13 +50,16 @@ export function OverviewLead({
             </p>
             <p className="pk-blotter-support">
               {losing === 0 ? (
-                <>Nothing sold at a loss over the last {periodDays} days.</>
+                <>
+                  Nothing sold at a loss over the last {periodDays}{" "}
+                  {dayWord(periodDays)}.
+                </>
               ) : (
                 <>
                   <span className="num">{losing}</span>{" "}
                   {losing === 1 ? "product" : "products"} of{" "}
                   <span className="num">{productCount}</span> sold · last{" "}
-                  <span className="num">{periodDays}</span> days
+                  <span className="num">{periodDays}</span> {dayWord(periodDays)}
                 </>
               )}
             </p>

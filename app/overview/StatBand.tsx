@@ -1,4 +1,5 @@
 import type { MarginDay } from "../reports/productMargin";
+import { dayWord } from "../text";
 import { SectionHead } from "./SectionHead";
 import { changeOf, StatCard } from "./StatCard";
 import type { OverviewPrevious } from "./types";
@@ -54,7 +55,7 @@ export function StatBand({
         <StatCard
           index={0}
           days={days.map((d) => d.day)}
-          label={`Contribution margin · ${periodDays} days`}
+          label={`Contribution margin · ${periodDays} ${dayWord(periodDays)}`}
           value={formatMoney(totalMargin)}
           detail={
             marginPercent == null

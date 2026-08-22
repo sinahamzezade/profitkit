@@ -24,7 +24,12 @@ the one accent colour this app uses.
 
 ## Tagline (100 char limit)
 
-> See which products lose you money, in three minutes.
+> See which products lose you money.
+
+Was "…, in three minutes." Removed: App Store requirement 4.3.3 forbids
+"unsubstantiated claims" in the listing, and a setup-time promise is exactly that —
+nothing in the app guarantees three minutes, and a store with a slow backfill would
+make it false on its face.
 
 ## Short description
 
@@ -34,7 +39,7 @@ refunds — and tells you which products cost you money.
 
 ## Long description
 
-**Your best-selling product might be your worst.**
+**The product you sell most of might be the one costing you money.**
 
 Shopify shows you revenue. It doesn't show you what each sale actually cost you.
 Cost of goods sits in a spreadsheet, payment fees land in a payout summary,
@@ -48,8 +53,8 @@ products lose you money, and why.**
 
 - **Products losing you money** — ranked worst first, each with the single
   reason it's losing. Not "cost of goods is high" on every row, but the cost
-  that's actually out of line for that product: *"This product lost $340 in 90
-  days. Shipping costs exceed what you charge by an average of $7.20 per order."*
+  that's actually out of line for that product — naming the amount lost over the
+  period, and by how much shipping or fees exceed what you charge.
 - **Product margin** — every product, sortable, with revenue, COGS, fees,
   shipping variance, refunds and contribution margin.
 - **Discounts & refunds** — where profit leaks month to month, by discount code
@@ -147,6 +152,19 @@ Written down so nobody adds them later without checking:
   else is modelled from rules the merchant sets.
 - **"AI-powered."** Nothing here is. If removing the word changes nothing, the
   word was the pitch.
+- **Any setup-time or results promise** — "in three minutes", "in one click",
+  "find your losses today". Requirement 4.3.3 forbids unsubstantiated claims, and
+  every one of these is a guarantee the app cannot make. The tagline carried
+  "in three minutes" until this was checked against the requirement.
+- **Sample figures presented as output** — *"This product lost $340 in 90 days.
+  Shipping costs exceed what you charge by $7.20 per order."* Invented numbers
+  that read as data, which 4.3.3 also forbids ("stats, data"). Describe the shape
+  of the finding instead; the screenshots show the real thing.
+- **The words "best", "first" and "only"** as claims about the app. 4.3.3 names
+  them specifically. "Your best-selling product might be your worst" was about the
+  merchant's product rather than the app, so it was arguably fine — it was
+  reworded anyway, because a reviewer scanning for the word does not stop to
+  parse whose superlative it is.
 - **Refund reasons for every refund.** Only refunds processed through Shopify's
   Returns flow carry a reason; refunds issued from the order page carry none.
 - **"No protected customer data."** Tempting next to the privacy bullet, and

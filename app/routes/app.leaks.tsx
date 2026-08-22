@@ -3,6 +3,7 @@ import { useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import prisma from "../db.server";
+import { dayWord } from "../text";
 import { authenticate } from "../shopify.server";
 import { resolveTierForShop, resolveTierLimits } from "../billing/tier";
 import { PRO_PLAN } from "../billing/plan";
@@ -284,7 +285,9 @@ export default function Leaks() {
           </div>
         </div>
         {limits.windowDays && (
-          <p className="pk-note">Over the last {limits.windowDays} days.</p>
+          <p className="pk-note">
+              Over the last {limits.windowDays} {dayWord(limits.windowDays)}.
+            </p>
         )}
       </s-section>
 
@@ -323,12 +326,19 @@ export default function Leaks() {
         />
       </s-section>
 
-      {limits.tier === "free" && (
+      {/*
+        `windowDays` is tested as well as the tier. On free it is always set, so this
+        reads as belt-and-braces — but the type is `number | null`, and without the
+        test a null would have rendered "You're seeing the last  days." rather than
+        failing, which is the kind of thing that ships.
+      */}
+      {limits.tier === "free" && limits.windowDays !== null && (
         <s-section heading="On the free plan">
           <s-stack gap="base">
             <s-paragraph>
-              You&apos;re seeing the last {limits.windowDays} days. Pro adds full history
-              and an accountant-ready export for ${PRO_PLAN.amount} a month.
+              You&apos;re seeing the last {limits.windowDays}{" "}
+              {dayWord(limits.windowDays)}. Pro adds full history and an
+              accountant-ready export for ${PRO_PLAN.amount} a month.
             </s-paragraph>
             <s-button
               variant="primary"

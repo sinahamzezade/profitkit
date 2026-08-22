@@ -1,5 +1,6 @@
 import type { Cents } from "../margin/types";
 import type { ProductMarginRow } from "./productMargin";
+import { dayWord } from "../text";
 
 /**
  * "The 10 products losing you money" — the view the app is for.
@@ -136,7 +137,9 @@ function explainLoss(
   const worst = excesses[0];
 
   const lost = formatMoney(Math.abs(row.contributionMargin), currency);
-  const opening = `This product lost ${lost} in ${periodDays} days.`;
+  const opening = `This product lost ${lost} in ${periodDays} ${dayWord(
+    periodDays,
+  )}.`;
   const lossPerUnit =
     row.unitsSold > 0 ? Math.round(row.contributionMargin / row.unitsSold) : null;
 
