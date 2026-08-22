@@ -24,17 +24,37 @@ would break something if edited to match:
 | Still says `profitkit` | Why |
 |---|---|
 | `shopify.app.profitkit.toml`, `--config profitkit` | Config selector. Every command and hook passes it |
-| `profitkit-app-production-b46d.up.railway.app` | The deployed app URL, in `application_url` |
+| `profitkit-app-production-b46d.up.railway.app` | Still attached to the service and still serving. No longer `application_url` — see below — but kept as a redirect URL through the cutover |
 | Railway project / service, `profitkit-postgres`, the `profitkit` database | Live infrastructure |
 | `profitkitapp@gmail.com` | A real mailbox — the support address and the Partner account |
-| `profitkit.vercel.app` | The deployed marketing site and privacy policy URL |
+| `profitkit.vercel.app` | Still an alias of the marketing site. No longer the published URL |
+
+## The domain
+
+`redlineapp.tech`, DNS on Cloudflare (`alan`/`gail.ns.cloudflare.com`).
+
+| Host | Points at | Cloudflare proxy |
+|---|---|---|
+| `redlineapp.tech`, `www` | Vercel — the marketing site | **Proxied.** Works; leave it |
+| `app.redlineapp.tech` | Railway — the embedded app | **DNS only.** Required: Railway issues its own Let's Encrypt cert, and proxying breaks the ACME challenge |
+
+Two traps live in this zone:
+
+- **A wildcard `*.redlineapp.tech` A record points at Vercel.** Before `app` had its
+  own CNAME, `app.redlineapp.tech` resolved to Vercel and failed TLS. An exact-match
+  record shadows the wildcard, so `app` is fine — but any *new* subdomain will silently
+  land on Vercel until it gets its own record. Deleting the wildcard is the real fix and
+  has not been done.
+- Railway needs a `TXT _railway-verify.app` record as well as the CNAME. Losing it
+  breaks certificate renewal, not just the initial issue.
 
 So a bare `profitkit` in this repo is infrastructure, and `Profitkit` capitalised is a
 leftover brand reference that should have become Redline. The folder name is
 `profikit`, missing a `t`, and predates all of it.
 
 The Partner Dashboard display name comes from `name` in the toml and updates on
-`shopify app deploy` — it is set to Redline but **not yet deployed**.
+`shopify app deploy`. **Deployed as of app version `redline-12`** — the version prefix
+is itself the confirmation, since it is derived from the app's name.
 
 ## Which config the CLI uses
 
