@@ -43,7 +43,6 @@ export function StatCard({
   series,
   days,
   share,
-  currency,
   index = 0,
   /** True when a rise in this figure is bad news — money leaving, products failing. */
   inverted = false,
@@ -61,7 +60,6 @@ export function StatCard({
    * way so the row keeps one baseline.
    */
   share?: { part: number; whole: number };
-  currency: string;
   index?: number;
   inverted?: boolean;
 }) {
@@ -101,7 +99,6 @@ export function StatCard({
             label={label}
             days={days}
             values={series}
-            currency={currency}
             /* `inverted` marks the metrics that are money leaving, which is what
                earns loss red — not the direction this period happened to move. */
             tone={inverted ? "loss" : "neutral"}

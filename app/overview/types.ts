@@ -3,6 +3,7 @@ import type { ErosionBucket } from "../reports/erosion";
 import type { HeroReport } from "../reports/lossLeaders";
 import type {
   MarginDay,
+  MarginMonth,
   ProductMarginRow,
   VendorMargin,
 } from "../reports/productMargin";
@@ -41,6 +42,7 @@ export type OverviewReady = {
   state: "ready";
   hero: HeroReport;
   coverage: CostCoverage;
+  months: MarginMonth[];
   earners: ProductMarginRow[];
   vendors: VendorMargin[];
   vendorCount: number;

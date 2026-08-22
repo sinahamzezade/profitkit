@@ -18,6 +18,7 @@ import { OVERVIEW_PREVIEW, type OverviewReady } from "../overview/types";
 import { hydrateProductImages } from "../shopify/images.server";
 import {
   aggregateByDay,
+  aggregateByMonth,
   aggregateByProduct,
   aggregateByVendor,
   applyReportOptions,
@@ -195,6 +196,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })),
     },
     coverage: buildCostCoverage(rows),
+    // Whole-month rollup for the margin-over-time chart. Cheap: the orders are
+    // already loaded for every other figure on this page.
+    months: aggregateByMonth(orders, config),
     earners: earners.map((row) => ({
       ...row,
       imageUrl: images.get(row.productId) ?? row.imageUrl,

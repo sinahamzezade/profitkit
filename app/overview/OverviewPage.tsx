@@ -9,7 +9,9 @@ import { makeMoneyFormatter, productHref } from "./money";
 import type { MoneyRow } from "./MoneyTable";
 import { OverviewLead } from "./OverviewLead";
 import { setupProgress } from "./setup";
+import { SectionHead } from "./SectionHead";
 import { SetupGuide } from "./SetupGuide";
+import { TrendPanel } from "./TrendPanel";
 import { StatBand } from "./StatBand";
 import { PK_STYLES } from "./styles";
 import { SuspectCosts } from "./SuspectCosts";
@@ -27,6 +29,7 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
     stats,
     productCount,
     coverage,
+    months,
     erosion,
     totalMargin,
     totalRevenue,
@@ -95,7 +98,6 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
       />
 
       <StatBand
-        currency={currency}
         days={stats.days}
         previous={stats.previous}
         periodDays={hero.periodDays}
@@ -112,10 +114,32 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
         rows={moneyRows}
         formatMoney={formatMoney}
         onOpen={openProduct}
-        moreHref={
-          productCount > moneyRows.length ? "/app/products" : undefined
-        }
+        moreHref={productCount > moneyRows.length ? "/app/products" : undefined}
       />
+
+      {/*
+        Margin by month, which until now was written but never mounted: TrendCoverage
+        wrapped it and nothing imported TrendCoverage, so the chart and its whole
+        component tree were unreachable. Mounting TrendPanel directly rather than that
+        wrapper, because the wrapper also rendered CoveragePanel, which already has a
+        tile of its own in the board below.
+      */}
+      {months.length > 1 && (
+        <>
+          <SectionHead
+            title="Margin over time"
+            meta="Whole months only"
+            action={<s-link href="/app/products">View details</s-link>}
+          />
+          <s-section accessibilityLabel="Margin by month">
+            <TrendPanel
+              months={months}
+              currency={currency}
+              formatMoney={formatMoney}
+            />
+          </s-section>
+        </>
+      )}
 
       <div className="pk-board">
         <div className="pk-tile">

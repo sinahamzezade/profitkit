@@ -220,6 +220,32 @@ export const PK_STYLES = `
     .pk-driver-track { display: none; }
   }
 
+  /* ---- section headings ---- */
+
+  /* Label left, controls right, sitting above the card rather than inside it —
+     the admin's own pattern, as used on Growth. */
+  .pk-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.4rem 1rem;
+    margin: 1.25rem 0 0.6rem;
+  }
+  .pk-section-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--pk-ink);
+  }
+  .pk-section-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem 1rem;
+  }
+  .pk-section-meta { font-size: 0.8rem; color: var(--pk-muted); }
+
   /* ---- stat cards ---- */
 
   /* No grid rule here — s-grid owns the layout now. This only has to stop a long
@@ -265,9 +291,9 @@ export const PK_STYLES = `
     margin-top: 0.5rem;
     min-height: 44px;
   }
-  /* Apex writes its own inline font-family onto tooltip nodes; this keeps the
-     numbers tabular so a hovered value lines up with the figure above it. */
-  .pk-spark .apexcharts-tooltip { font-variant-numeric: tabular-nums; }
+  /* polaris-viz draws its own tooltip; this only keeps the numbers in it tabular so a
+     hovered value lines up with the figure above the chart. */
+  .pk-spark [class*="Tooltip"] { font-variant-numeric: tabular-nums; }
 
   /* Occupies the sparkline's footprint on a card whose figure is a count, so the
      four cards keep one baseline. Bottom-aligned to sit where a trend line would. */

@@ -1,9 +1,9 @@
 import type { MarginDay } from "../reports/productMargin";
+import { SectionHead } from "./SectionHead";
 import { changeOf, StatCard } from "./StatCard";
 import type { OverviewPrevious } from "./types";
 
 export function StatBand({
-  currency,
   days,
   previous,
   periodDays,
@@ -14,7 +14,6 @@ export function StatBand({
   givenBack,
   formatMoney,
 }: {
-  currency: string;
   days: MarginDay[];
   previous: OverviewPrevious | null;
   periodDays: number;
@@ -29,6 +28,14 @@ export function StatBand({
 
   return (
     <div className="pk-stat-band">
+      {/* Growth labels its card row from outside, with the range and a details link
+          opposite. The range here is a statement, not a control: the window is set by
+          the plan. */}
+      <SectionHead
+        title="Performance"
+        meta={`Last ${periodDays} days`}
+        action={<s-link href="/app/products">View details</s-link>}
+      />
       {/*
         Four cards, laid out by `s-grid` rather than a CSS grid of my own.
 
@@ -47,7 +54,6 @@ export function StatBand({
       >
         <StatCard
           index={0}
-          currency={currency}
           days={days.map((d) => d.day)}
           label={`Contribution margin · ${periodDays} days`}
           value={formatMoney(totalMargin)}
@@ -61,7 +67,6 @@ export function StatBand({
         />
         <StatCard
           index={1}
-          currency={currency}
           days={days.map((d) => d.day)}
           label="Revenue after discounts"
           value={formatMoney(totalRevenue)}
@@ -73,7 +78,6 @@ export function StatBand({
             that looks like data and isn't. */}
         <StatCard
           index={2}
-          currency={currency}
           label="Products losing money"
           value={String(losingCount)}
           detail={`of ${productCount} sold`}
@@ -87,7 +91,6 @@ export function StatBand({
         />
         <StatCard
           index={3}
-          currency={currency}
           days={days.map((d) => d.day)}
           label="Given back"
           value={formatMoney(givenBack)}
