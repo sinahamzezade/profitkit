@@ -45,24 +45,36 @@ export function CoveragePanel({
           ))}
         </span>
 
+        {/*
+          The actions are buttons below the sentence rather than links inside it.
+          A button is a block-level control, so setting one mid-paragraph breaks the
+          line it sits in — the vendor name in particular was a link in the middle of
+          a clause. The sentence now names the vendor as plain text and the control
+          follows it, which also gives the two actions a consistent shape.
+        */}
         {coverage.nextStep && (
-          <p className="pk-panel-note">
-            Biggest single improvement: set a cost for{" "}
-            <s-link href="/app/settings">{coverage.nextStep.vendor}</s-link>
-            {" — "}
-            {coverage.nextStep.products}{" "}
-            {coverage.nextStep.products === 1 ? "product" : "products"} carrying{" "}
-            {formatMoney(coverage.nextStep.revenue)} of revenue.
-          </p>
+          <>
+            <p className="pk-panel-note">
+              Biggest single improvement: {coverage.nextStep.vendor}, with{" "}
+              {coverage.nextStep.products}{" "}
+              {coverage.nextStep.products === 1 ? "product" : "products"} carrying{" "}
+              {formatMoney(coverage.nextStep.revenue)} of revenue.
+            </p>
+            <s-button variant="secondary" href="/app/settings">
+              Set a cost for {coverage.nextStep.vendor}
+            </s-button>
+          </>
         )}
 
         {/* The panel that tells a merchant their numbers are estimates is the place
             to offer the thing that stops them being estimates. */}
         {loosePercent > 0 && (
-          <p className="pk-panel-note">
-            Or replace the guesswork outright:{" "}
-            <s-link href="/app/costs/import">import a cost sheet</s-link>.
-          </p>
+          <>
+            <p className="pk-panel-note">Or replace the guesswork outright.</p>
+            <s-button variant="secondary" href="/app/costs/import">
+              Import a cost sheet
+            </s-button>
+          </>
         )}
       </WidgetBody>
     </s-section>

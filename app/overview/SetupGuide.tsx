@@ -97,7 +97,9 @@ export function SetupGuide({ setup }: { setup: SetupState }) {
                 <p className="pk-guide-step-title">{step.title}</p>
                 <p className="pk-guide-step-note">{step.body}</p>
                 {!step.done && step.action?.href && (
-                  <s-link href={step.action.href}>{step.action.label}</s-link>
+                  <s-button variant="secondary" href={step.action.href}>
+                    {step.action.label}
+                  </s-button>
                 )}
               </div>
             </li>
@@ -111,14 +113,14 @@ export function SetupGuide({ setup }: { setup: SetupState }) {
       {open && (hasGuide || hasVideo) && (
         <div className="pk-guide-links">
           {hasGuide && (
-            <s-link href={GUIDE_URL} target="_blank">
+            <s-button variant="tertiary" href={GUIDE_URL} target="_blank">
               Read the full walkthrough
-            </s-link>
+            </s-button>
           )}
           {hasVideo && (
-            <s-link href={VIDEO_URL} target="_blank">
+            <s-button variant="tertiary" href={VIDEO_URL} target="_blank">
               Watch the video
-            </s-link>
+            </s-button>
           )}
         </div>
       )}

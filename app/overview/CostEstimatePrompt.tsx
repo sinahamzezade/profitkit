@@ -45,10 +45,12 @@ export function CostEstimatePrompt({ hasCostData }: { hasCostData: boolean }) {
       <s-paragraph>
         <s-text tone="neutral">
           Once you&apos;ve seen the shape of the answer, refine it per supplier
-          and add payment fees and shipping cost in{" "}
-          <s-link href="/app/settings">cost settings</s-link>.
+          and add payment fees and shipping cost.
         </s-text>
       </s-paragraph>
+      <s-button variant="secondary" href="/app/settings">
+        Open cost settings
+      </s-button>
     </s-section>
   );
 }
