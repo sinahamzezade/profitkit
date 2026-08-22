@@ -36,11 +36,12 @@ has been seen, and the app has never been submitted.
 | Deployed config | App version profitkit-8 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain; scopes include read_returns |
 | Billing | `billing.check` wired; $29 recurring plan registered |
 | Install | Verified on a live store: 17 products, 9 orders backfilled. Claimed once per shop from `afterAuth` *and* the app loader, since token-exchange sessions never call `afterAuth` |
-| Overview page | Split from one ~1,550-line route into 24 modules under `app/overview/`; the route is now 250 lines |
-| Charts | ApexCharts, dynamically imported so it stays out of the server bundle and its own ~279 kB gzip chunk loads after paint. Sparklines per stat card, horizontal bars for margin by month, with a screen-reader table beside the chart |
+| Overview page | Split from one ~1,550-line route into 23 modules under `app/overview/`; the route is now 254 lines. Laid out on the admin's own Growth patterns — every group of cards labelled from outside the card, with the range and a details link opposite the label, and the page on the default measure rather than full width |
+| Charts | `@shopify/polaris-viz`, Shopify's own chart library, so the charts match the admin. Lazy-loaded behind `app/charts/viz.tsx`: unlike ApexCharts it imports fine on the server and then fails inside `ChartContainer` on render, so the guard sits at the render boundary rather than the import. 114 kB gzip against Apex's 279 kB. Sparklines per stat card, horizontal bars for margin by month, with a screen-reader table beside the chart |
+| Cost sheet import | `/app/costs/import` — drag-and-drop CSV with a pre-filled template download, parsed and previewed before anything is written. `npm run import-cogs` still exists for bulk work |
 | Product images | `imageUrl` column, set during ingestion, with a catch-up query for products ingested before the column existed |
 
-239 tests. Lint, typecheck and the production build clean.
+243 tests. Lint, typecheck and the production build clean.
 
 ### The seed's losers and the app's losers are different lists, on purpose
 
@@ -66,7 +67,7 @@ and `npm run reconcile` is what ties the app's own figures back to its raw rows.
 
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
-npm test               # 220 unit tests
+npm test               # 243 unit tests
 npm run seed           # regenerate the synthetic dataset (see note below)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back
@@ -121,9 +122,13 @@ depends on it.
    outright on cost. That wants measuring against a real store.
 4. **Collection-level COGS never fires.** Logic and tests exist; collection
    membership isn't ingested, so vendor is the only working group rung.
-5. **Exact per-product costs are CLI-only.** `setVariantCogsCents` is reached
-   solely by `npm run import-cogs`. A merchant can set a supplier-level percentage in
-   cost settings, but has no way to upload a real cost sheet from inside the app.
+5. **A single product's cost still cannot be typed in.** Exact per-product costs are
+   no longer CLI-only — `/app/costs/import` takes a cost sheet from inside the app, and
+   it and `npm run import-cogs` share `commitCogsImport`, so the two cannot drift. But
+   the only way in is still a CSV. Correcting one product means editing a spreadsheet
+   and re-uploading, which is the wrong shape for the common case of spotting a wrong
+   figure on the product page. `setVariantCogsCents` in `app/costs/repository.ts` is
+   the single-variant writer and is currently called by nothing.
 6. **Listing assets not produced.** Screenshots and the demo video are manual;
    `LISTING.md` says which four screenshots and in what order.
 7. **The marketing site is deployed by CLI, not from git.** Both pages are now correct
