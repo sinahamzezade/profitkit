@@ -16,6 +16,24 @@ export const MAX_ROWS = 5_000;
 /** ~4 MB of CSV. Far beyond any real cost sheet, well inside a request body. */
 export const MAX_TEXT_BYTES = 4_000_000;
 
+/**
+ * Header row of the downloadable cost template.
+ *
+ * These exact names are what make the template import with no mapping step: `sku`
+ * and `cost` are exact matches in the importer's hint lists, and `variant_id`
+ * normalises to "variantid" which is too. `product` matches no hint, so the importer
+ * ignores it — it is there for the human filling the file in, and a title is never
+ * matched on because titles repeat.
+ *
+ * Shared with the template route so the two cannot drift, and asserted in
+ * request.test.ts: renaming a column here without checking would quietly put the
+ * merchant back on the mapping screen.
+ */
+export const TEMPLATE_HEADERS = ["sku", "variant_id", "product", "cost"] as const;
+
+/** Index of the column a merchant fills in, for building template rows. */
+export const TEMPLATE_COST_INDEX = TEMPLATE_HEADERS.indexOf("cost");
+
 export type PreparedImport =
   | { ok: false; error: string }
   | { ok: true; headers: string[]; rows: string[][]; delimiter: string };

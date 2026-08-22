@@ -217,6 +217,32 @@ export default function CostImport() {
               renaming first.
             </s-text>
           </s-paragraph>
+
+          {/*
+            The template is this store's own products, not a blank example: every
+            variant already listed with its SKU, so only the cost column is left to
+            fill. That removes the two things that actually go wrong — looking up
+            SKUs by hand, and a column layout the mapper has to guess at.
+
+            Opens in a new tab deliberately. A download started inside the embedded
+            admin's iframe is unreliable; leaving the frame is the pattern that works.
+          */}
+          {variantCount > 0 && (
+            <div className="pk-import-template">
+              <s-button
+                href="/app/costs/template.csv"
+                target="_blank"
+                icon="arrow-down"
+              >
+                Download template
+              </s-button>
+              <s-text tone="neutral">
+                Pre-filled with your {variantCount.toLocaleString()} variants — add
+                costs, delete the rows you cannot fill, upload.
+              </s-text>
+            </div>
+          )}
+
           <div className="pk-import-drop">
             <s-drop-zone
               label="Cost sheet"
@@ -547,6 +573,16 @@ function str(index: number | null): string {
 
 const IMPORT_STYLES = `
   .pk-import-drop { margin-block: 1rem; }
+
+  /* Button and its one line of explanation on a row, wrapping together on a narrow
+     frame rather than the caption stranding itself under a full-width button. */
+  .pk-import-template {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+    margin-top: 1rem;
+  }
 
   .pk-import-map {
     display: grid;

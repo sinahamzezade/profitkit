@@ -10,8 +10,15 @@ import {
   prepareImport,
   PROBLEM_LIMIT,
   readMapping,
+  TEMPLATE_COST_INDEX,
+  TEMPLATE_HEADERS,
 } from "./request";
-import type { ValidatedRow, ValidationSummary } from "./cogsImport";
+import {
+  suggestColumnMapping,
+  validateImport,
+  type ValidatedRow,
+  type ValidationSummary,
+} from "./cogsImport";
 
 describe("prepareImport", () => {
   it("accepts a normal cost sheet and reports what it found", () => {
@@ -180,5 +187,63 @@ describe("describeDelimiter", () => {
 
   it("quotes anything unexpected rather than guessing a name", () => {
     expect(describeDelimiter("^")).toBe('"^"');
+  });
+});
+
+/**
+ * The downloadable template's contract.
+ *
+ * Its whole point is that a merchant fills one column and uploads — no mapping
+ * screen. That only holds while the header names stay exact matches for the
+ * importer's hints, which is easy to break by renaming a column for readability.
+ */
+describe("TEMPLATE_HEADERS", () => {
+  it("auto-maps with no merchant input", () => {
+    const mapping = suggestColumnMapping([...TEMPLATE_HEADERS]);
+
+    expect(mapping).toEqual({ sku: 0, variantId: 1, cost: 3 });
+    // Usable as-is: no error means the merchant never has to touch a select.
+    expect(mappingError(mapping)).toBeNull();
+  });
+
+  it("does not offer the product title as a match column", () => {
+    // Titles repeat, and a wrong match writes a wrong cost silently. `product` is
+    // in the file for the human, and must never be picked up as an identifier.
+    const mapping = suggestColumnMapping([...TEMPLATE_HEADERS]);
+    const productIndex = TEMPLATE_HEADERS.indexOf("product");
+
+    expect(mapping.sku).not.toBe(productIndex);
+    expect(mapping.variantId).not.toBe(productIndex);
+  });
+
+  it("puts the cost column where the template builder writes it", () => {
+    expect(TEMPLATE_COST_INDEX).toBe(TEMPLATE_HEADERS.indexOf("cost"));
+    expect(TEMPLATE_HEADERS[TEMPLATE_COST_INDEX]).toBe("cost");
+  });
+
+  it("round-trips: a filled template imports, an unfilled one reports missing costs", () => {
+    const catalog = [
+      { variantGid: "gid://shopify/ProductVariant/1", sku: "WB-1", priceCents: 5000 },
+      { variantGid: "gid://shopify/ProductVariant/2", sku: null, priceCents: 2500 },
+    ];
+    const mapping = suggestColumnMapping([...TEMPLATE_HEADERS]);
+    // As the route emits it: identifiers filled, cost blank.
+    const rows = catalog.map((c) => [c.sku ?? "", c.variantGid, "A Product", ""]);
+
+    const unfilled = validateImport(rows, mapping, catalog, TEMPLATE_HEADERS.length);
+    expect(unfilled.matched).toBe(0);
+    expect(unfilled.errored).toBe(2);
+    expect(unfilled.rows[0].message).toMatch(/cost/i);
+
+    const filled = rows.map((r) => {
+      const copy = [...r];
+      copy[TEMPLATE_COST_INDEX] = "9.99";
+      return copy;
+    });
+    const done = validateImport(filled, mapping, catalog, TEMPLATE_HEADERS.length);
+    expect(done.matched).toBe(2);
+    expect(done.errored).toBe(0);
+    // Including the SKU-less variant, which only its id can match.
+    expect(done.unmatchedCatalogCount).toBe(0);
   });
 });
