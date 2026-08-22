@@ -13,7 +13,9 @@ webhook registration and delivery, and the three mandatory privacy webhooks are
 verified against that store — 15 of 32 `VERIFICATION.md` items, 3 partial.
 
 **Not done:** billing has never been exercised, no store with real trading history
-has been seen, and the app has never been submitted.
+has been seen, and the app has never been submitted. Billing is no longer *blocked*,
+though — public distribution was set on 2026-08-22, so the six checks in
+`VERIFICATION.md` section 5 are now testable.
 
 ---
 
@@ -33,7 +35,7 @@ has been seen, and the app has never been submitted.
 | Adapter | Mock-tested against recorded shapes, plus live delivery of orders/create, orders/updated, refunds/create and products/update on a real store |
 | Privacy | Three mandatory webhooks verified live (200 with real HMAC); shop/redact deletion proved by row counts and scoped to one shop; schema asserted free of customer identity |
 | Hosting | Railway (Profitkit's Projects, project 22490a45): Postgres + profitkit-app from the Dockerfile, migrations applied on boot |
-| Deployed config | App version profitkit-8 — app_url, OAuth redirects, 3 privacy webhooks and 6 subscriptions all at the Railway domain; scopes include read_returns |
+| Deployed config | App version redline-app-13 — app_url and OAuth redirects at `app.redlineapp.tech`, 3 privacy webhooks and 6 subscriptions (relative URIs, so they follow app_url); scopes include read_returns. **Public distribution set 2026-08-22**, which is irreversible and unblocks the Billing API |
 | Billing | `billing.check` wired; $29 recurring plan registered |
 | Install | Verified on a live store: 17 products, 9 orders backfilled. Claimed once per shop from `afterAuth` *and* the app loader, since token-exchange sessions never call `afterAuth` |
 | Overview page | Split from one ~1,550-line route into 23 modules under `app/overview/`; the route is now 254 lines. Laid out on the admin's own Growth patterns — every group of cards labelled from outside the card, with the range and a details link opposite the label, and the page on the default measure rather than full width |
@@ -41,7 +43,7 @@ has been seen, and the app has never been submitted.
 | Cost sheet import | `/app/costs/import` — drag-and-drop CSV with a pre-filled template download, parsed and previewed before anything is written. `npm run import-cogs` still exists for bulk work |
 | Product images | `imageUrl` column, set during ingestion, with a catch-up query for products ingested before the column existed |
 
-243 tests. Lint, typecheck and the production build clean.
+244 tests. Lint, typecheck and the production build clean.
 
 ### The seed's losers and the app's losers are different lists, on purpose
 
@@ -67,7 +69,7 @@ and `npm run reconcile` is what ties the app's own figures back to its raw rows.
 
 ```bash
 shopify app dev --config profitkit   # `npm run dev` omits the config flag
-npm test               # 243 unit tests
+npm test               # 244 unit tests
 npm run seed           # regenerate the synthetic dataset (see note below)
 npm run load-seed -- <shop-domain>   # load it into Postgres
 npm run reconcile -- <shop-domain>   # prove every reported number ties back

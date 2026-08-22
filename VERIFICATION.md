@@ -154,22 +154,26 @@ signing path — not a hand-rolled request.
 
 ## 5. Billing
 
-> **Blocked, and not by code.** Every check below is unreachable until the app has
-> **public distribution** set in the Partner Dashboard. Pressing "Upgrade to Pro" on
-> 2026-08-21 returned the userError *"Apps without a public distribution cannot use
-> the Billing API"* — Shopify authenticated the mutation and refused it on that rule
-> alone. Nothing in this repo can lift it: `AppDistribution.AppStore` in
-> `app/shopify.server.ts` configures the SDK's auth behaviour, not the Dashboard's
-> distribution setting, and the two are unrelated despite the similar name.
+> **Unblocked on 2026-08-22. Public distribution is set.** Shopify's own dialog said
+> *"Select public distribution? This can't be undone."* and it is now done, so the
+> Billing API is reachable and every check below is testable rather than untestable.
 >
-> **Choosing a distribution method is irreversible.** Shopify does not allow it to be
-> changed once set, so it is a deliberate decision for the app owner, not a step to
-> take in passing while chasing a billing bug. Until it is set, treat this whole
-> section as untestable rather than failing.
+> The history is worth keeping. Pressing "Upgrade to Pro" on 2026-08-21 returned the
+> userError *"Apps without a public distribution cannot use the Billing API"* —
+> Shopify authenticated the mutation and refused it on that rule alone. Nothing in
+> this repo could lift it: `AppDistribution.AppStore` in `app/shopify.server.ts`
+> configures the SDK's auth behaviour, not the Dashboard's distribution setting, and
+> the two are unrelated despite the similar name. The failure path is still handled —
+> the refusal renders as a critical banner quoting Shopify's wording and logs the full
+> `userErrors` under `[billing]` — and that path should be left in place.
 >
-> The failure path itself is now handled: the refusal renders as a critical banner
-> quoting Shopify's own wording and logs the full `userErrors` under `[billing]`,
-> instead of throwing a bare 500 the way it did when first pressed.
+> **Test these against `shopify app dev`, not the Railway deployment.** `isTest` is
+> derived as `process.env.NODE_ENV !== "production"`, and Railway sets NODE_ENV to
+> production in the Dockerfile, so the deployed app requests a *real* charge. That is
+> correct for merchants and is exactly what the last item in this section asks for,
+> but a development store cannot be charged for real — so exercising the flow against
+> production would fail for a reason that has nothing to do with the code. Run it
+> locally, where `isTest` is true, and the same dev store will take a test charge.
 
 - [ ] `/app/upgrade` redirects to Shopify's confirmation page.
 - [ ] Approving a **test** charge on a dev store flips `billing.check` to
@@ -192,8 +196,17 @@ signing path — not a hand-rolled request.
       "Returns". `read_returns` was added on 2026-08-21 because the order query needs
       it for refund reasons; the adapter now retries without that selection if a shop
       declines, so the scope is not load-bearing for margin.*
-- [ ] Protected customer data access is approved for the app, or every order query
-      fails with `ACCESS_DENIED`.
+- [~] Protected customer data access. **Not a separate prior application, which is
+      what it looked like from outside.** The Partner Dashboard page states it
+      directly: *"You can access your selected data in development without submitting
+      for review"*, and *"After you submit your App Store Listing, Shopify will review
+      your access"*. So it is reviewed **as part of** the listing submission, and the
+      dev store works today precisely because development access needs no review.
+      *Status on 2026-08-22: Draft. Step 1 is done — data use is set to "App
+      functionality, Analytics", and none of the four optional protected fields (Name,
+      Email, Phone, Address) is selected, which is what makes the listing's privacy
+      claim true rather than aspirational. Step 2, the data protection details, is
+      **0 of 9 questions answered** and is the real remaining work here.*
 - [x] Confirm behaviour when the merchant declines a scope upgrade.
       *Covered in code rather than by a live decline: Shopify refuses the whole order
       query over one ungranted field, so a declined `read_returns` used to mean no
