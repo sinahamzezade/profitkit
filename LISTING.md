@@ -173,14 +173,28 @@ Written down so nobody adds them later without checking:
       *Deployed. `/privacy` serves `profitkitapp@gmail.com`, `/guide` returns 200, and
       the monogram and favicon are live. Note that site publishes only via
       `vercel --prod` — pushing the repo deploys nothing.*
-- [ ] **Upload the app icon in the Dev Dashboard.** `public/brand/redline-icon-1200.png`.
-      This is the one branding step no command performs: the icon is not a field in
-      `shopify.app.toml` — there is no `[branding]` section — so `shopify app deploy`
-      carries the name and webhooks but never the icon. Until it is uploaded the admin
-      nav shows Shopify's default placeholder next to "Redline".
-      *Checked against the requirements: 1200×1200, PNG, fully opaque, ~47KB, padded
-      enough that the automatic corner rounding does not clip the glyph, and no text —
-      which the guidelines ask you to avoid.*
+- [x] **App icon uploaded.** `public/brand/redline-icon-1200.png`, set in the Dev
+      Dashboard under **App settings → App icon**. Confirmed live in the Dashboard
+      sidebar, the App icon panel and the Shopify admin nav, which previously showed
+      the default placeholder next to "Redline". The same icon serves the App Store
+      tile whenever the app is listed.
+      *The field states PNG or JPG, 1200×1200, 1MB max; the file is PNG, 1200×1200,
+      fully opaque, ~22KB on upload, padded enough that the automatic corner rounding
+      does not clip the glyph, and carries no text — which the branding guidelines ask
+      you to avoid.*
+
+      Two things worth recording, because both were got wrong first time:
+
+      The icon is **not** in `shopify.app.toml` — there is no `[branding]` section, and
+      no icon identifier exists anywhere in the installed CLI. So `shopify app deploy`
+      carries the name, scopes and webhooks but never the icon, and a version release
+      will not update it. That much held up.
+
+      What did not hold up was calling it a step no tooling can perform, and filing it
+      as a manual task. It is an ordinary file input on the settings page and uploads
+      like any other. It is also **not** gated behind choosing a distribution method,
+      which was a guess worth checking rather than repeating — it matters here, because
+      distribution is deliberately still unset.
       Dashboard: https://dev.shopify.com/dashboard/231656675/apps/412546138113
 - [ ] Capture the four screenshots at 1600×900 from a seeded store.
 - [ ] Record the 60-second demo: install → cost estimate → loss-making products.
