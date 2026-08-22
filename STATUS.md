@@ -92,6 +92,13 @@ depends on it.
 
 ## Known gaps, in the order they'd hurt
 
+0. **No way to cancel Pro from inside the app.** App Store requirement 1.2.3 —
+   "Allow pricing plan changes" — says merchants must upgrade *and downgrade*
+   without contacting support or reinstalling. `/app/upgrade` is one-way; nothing
+   in `app/routes/` or `app/billing/` cancels. Shopify's own Settings → Billing can
+   cancel an app subscription, which may satisfy a reviewer in practice, but the
+   requirement reads as an obligation on the app. Scoped below.
+
 1. **A duplicate Railway project is still running in an unrelated account.**
    Project `47cf1fc3`, under a personal Railway account that is *not* the Profitkit
    one — the first provisioning landed there before the accounts were untangled. It
@@ -157,6 +164,49 @@ depends on it.
    and it is fixed there. Sweeping the other three is a restyle no automated check can
    confirm, so it wants a session in the admin with eyes on each page rather than a
    find-and-replace.
+
+## Scope: cancelling Pro from inside the app
+
+Closes gap 0 above. Smaller than it looks, because **the app stores no tier of its
+own.** `resolveTierForShop` asks Shopify's Billing API on every request, so the
+moment a subscription is cancelled the next page load resolves to free on its own.
+There is no local row to update, no webhook to handle, and no reconciliation step —
+which is exactly why this is worth doing properly rather than deferring.
+
+**What has to change**
+
+1. `BillingChecker` in `app/billing/tier.ts` narrows `check()` to
+   `{ hasActivePayment }`. Cancelling needs a subscription id, and
+   `BillingCheckResponseObject` already carries `appSubscriptions: AppSubscription[]`
+   with an `id` on each. Widen the interface to surface it. The narrowing was
+   deliberate — keep it as narrow as the new job allows, so the fake in
+   `tier.test.ts` stays cheap.
+2. A `resolveActiveSubscription(billing)` helper returning `{ id, name } | null`.
+   Cancelling needs the id; the UI needs the name to say what is being cancelled.
+3. `app/routes/app.downgrade.tsx`, mirroring `app.upgrade.tsx`: an action calling
+   `billing.cancel({ subscriptionId, isTest: process.env.NODE_ENV !== "production" })`.
+   **`isTest` must be derived the same way as in `upgrade`** — a mismatch between how
+   a subscription was created and how it is cancelled is the obvious way to get a
+   cancel that silently does nothing.
+4. `prorate` — decide deliberately. Passing `true` credits the merchant the unused
+   part of the cycle and deducts it from the Partner account. Leaving it off is the
+   default and is defensible for a $29 monthly plan. Either way, say which in the
+   confirmation copy, because the merchant will find out at the next statement.
+5. UI. Cost settings is the right home — it is where plan state already belongs, and
+   it keeps the destructive action off the overview. Needs a confirmation step: state
+   what is lost (history beyond the free window, the accountant export) and that the
+   data is not deleted, only hidden behind the window again.
+
+**What must not change**
+
+The tier query bound. A cancelled shop drops back to the free window because
+`resolveTierLimits` says so, not because a route decides to show less — the bound is
+applied before any read and stays that way.
+
+**Testing.** The action itself is unit-testable against a fake `billing` today. The
+live half — cancel, confirm `hasActivePayment` flips false, confirm the window
+narrows and `/app/export.csv` returns 402 again — is already item 5 of
+`VERIFICATION.md` and is blocked on distribution along with the rest of billing.
 
 ## Decisions worth not re-litigating
 
