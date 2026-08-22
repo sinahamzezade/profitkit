@@ -33,7 +33,6 @@ export function StatBand({
           the plan. */}
       <SectionHead
         title="Performance"
-        meta={`Last ${periodDays} days`}
         action={<s-link href="/app/products">View details</s-link>}
       />
       {/*

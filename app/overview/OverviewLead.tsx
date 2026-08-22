@@ -9,9 +9,10 @@ import { OVERVIEW_PREVIEW } from "./types";
 /**
  * The period finding, as a blotter rather than a paragraph.
  *
- * Window and comparison sit on a shared foot so they stay next to the figure they
- * qualify. Cost quality has its own widget below — repeating the track here made
- * the finding compete with a caveat that needs a destination of its own.
+ * Window and comparison live in the section header above, per Growth, which puts
+ * the range beside the label rather than inside the card. Cost quality has its own
+ * widget below — repeating the track here made the finding compete with a caveat
+ * that needs a destination of its own.
  *
  * Deliberately not a second KPI row. The four cards under this already hold
  * margin, revenue, the losing count and money given back.
@@ -21,40 +22,16 @@ export function OverviewLead({
   totalLost,
   periodDays,
   productCount,
-  from,
-  to,
-  compared,
   formatMoney,
 }: {
   losers: LossLeader[];
   totalLost: number;
   periodDays: number;
   productCount: number;
-  from: string | null;
-  to: string | null;
-  compared: boolean;
   formatMoney: (cents: number) => string;
 }) {
   const losing = losers.length;
   const lost = Math.abs(totalLost);
-  const dateFmt = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-
-  const windowLabel =
-    from && to
-      ? `${dateFmt.format(new Date(from))} – ${dateFmt.format(new Date(to))}`
-      : "No orders in this period yet";
-
-  const compareLabel = !from || !to
-    ? "No period to compare"
-    : compared
-      ? "Previous period of the same length"
-      : "Not enough history on this plan";
-
   const drivers = rollupDrivers(losers).slice(0, OVERVIEW_PREVIEW.drivers);
 
   return (
@@ -89,20 +66,43 @@ export function OverviewLead({
         {drivers.length > 0 && (
           <DriverMix drivers={drivers} formatMoney={formatMoney} />
         )}
-
-        <dl className="pk-blotter-foot">
-          <div className="pk-blotter-chip">
-            <dt>Window</dt>
-            <dd className="num">{windowLabel}</dd>
-          </div>
-          <div className="pk-blotter-chip">
-            <dt>Compared with</dt>
-            <dd>{compareLabel}</dd>
-          </div>
-        </dl>
       </div>
     </s-section>
   );
+}
+
+/**
+ * Window and comparison, for the section header above this card.
+ *
+ * They used to sit in a foot inside the card. Growth puts the range in the section
+ * header instead, next to the label and opposite the details link, and moving them
+ * there also removed a duplication: the window was stated in this card's foot and
+ * again as "Last N days" over the cards below it.
+ */
+export function describeWindow({
+  from,
+  to,
+  compared,
+}: {
+  from: string | null;
+  to: string | null;
+  compared: boolean;
+}): string {
+  const dateFmt = new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+  if (!from || !to) return "No orders in this period yet";
+
+  const window = `${dateFmt.format(new Date(from))} – ${dateFmt.format(
+    new Date(to),
+  )}`;
+  return compared
+    ? `${window} · compared with the previous period`
+    : `${window} · not enough history on this plan to compare`;
 }
 
 type DriverSlice = {

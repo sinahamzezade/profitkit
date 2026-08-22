@@ -128,36 +128,6 @@ export const PK_STYLES = `
     color: var(--pk-body);
   }
 
-  .pk-blotter-foot {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-    gap: 0.85rem 1.5rem;
-    grid-column: 1 / -1;
-    margin: 0.15rem 0 0;
-    padding-top: 1rem;
-    border-top: 1px solid var(--pk-rule);
-  }
-  .pk-blotter-chip { min-width: 0; }
-  .pk-blotter-chip dt {
-    margin: 0 0 0.2rem;
-    font-size: 0.7rem;
-    color: var(--pk-faint);
-  }
-  .pk-blotter-chip dd {
-    margin: 0;
-    font-size: 0.82rem;
-    line-height: 1.35;
-    color: var(--pk-ink);
-  }
-  .pk-blotter-chip-wide { grid-column: span 1; }
-  .pk-blotter-chip-note {
-    display: block;
-    margin-top: 0.35rem;
-    font-size: 0.75rem;
-    line-height: 1.4;
-    color: var(--pk-muted);
-  }
-
   /* Cost-quality track. flex-grow is the revenue on each band, so width is share
      of the window, not a count of products. */
   .pk-conf {

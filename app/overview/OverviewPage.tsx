@@ -7,7 +7,7 @@ import { CoveragePanel } from "./CoveragePanel";
 import { ErosionPanel } from "./ErosionPanel";
 import { makeMoneyFormatter, productHref } from "./money";
 import type { MoneyRow } from "./MoneyTable";
-import { OverviewLead } from "./OverviewLead";
+import { describeWindow, OverviewLead } from "./OverviewLead";
 import { setupProgress } from "./setup";
 import { SectionHead } from "./SectionHead";
 import { SetupGuide } from "./SetupGuide";
@@ -86,14 +86,26 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
       {!setupDone && <SetupGuide setup={setup} />}
       {!hasCostData && <CostEstimatePrompt hasCostData={false} />}
 
+      {/*
+        Growth's grammar, applied throughout: every group of cards carries a label
+        outside it, with the range and a details link opposite. Nothing on the page
+        is an unlabelled hero any more — the finding is a labelled section like the
+        rest, and the window states itself once, here, instead of in this card's foot
+        and again over the cards below.
+      */}
+      <SectionHead
+        title="This period"
+        meta={describeWindow({
+          from: stats.from,
+          to: stats.to,
+          compared: stats.previous !== null,
+        })}
+      />
       <OverviewLead
         losers={hero.losers}
         totalLost={hero.totalLost}
         periodDays={hero.periodDays}
         productCount={productCount}
-        from={stats.from}
-        to={stats.to}
-        compared={stats.previous !== null}
         formatMoney={formatMoney}
       />
 
@@ -141,6 +153,10 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
         </>
       )}
 
+      <SectionHead
+        title="Where profit leaks"
+        action={<s-link href="/app/leaks">View details</s-link>}
+      />
       <div className="pk-board">
         <div className="pk-tile">
           <ErosionPanel erosion={erosion} formatMoney={formatMoney} />
