@@ -34,7 +34,11 @@ export function StatBand({
           the plan. */}
       <SectionHead
         title="Performance"
-        action={<s-link href="/app/products">View details</s-link>}
+        action={
+          <s-button variant="tertiary" href="/app/products">
+            View details
+          </s-button>
+        }
       />
       {/*
         Four cards, laid out by `s-grid` rather than a CSS grid of my own.

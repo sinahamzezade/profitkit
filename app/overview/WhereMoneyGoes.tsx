@@ -22,7 +22,11 @@ export function WhereMoneyGoes({
       <SectionHead
         title="Where the money goes"
         action={
-          moreHref ? <s-link href={moreHref}>View details</s-link> : undefined
+          moreHref ? (
+            <s-button variant="tertiary" href={moreHref}>
+              View details
+            </s-button>
+          ) : undefined
         }
       />
       <s-section accessibilityLabel="Where the money goes">

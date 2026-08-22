@@ -141,7 +141,11 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
           <SectionHead
             title="Margin over time"
             meta="Whole months only"
-            action={<s-link href="/app/products">View details</s-link>}
+            action={
+              <s-button variant="tertiary" href="/app/products">
+                View details
+              </s-button>
+            }
           />
           <s-section accessibilityLabel="Margin by month">
             <TrendPanel
@@ -155,7 +159,11 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
 
       <SectionHead
         title="Where profit leaks"
-        action={<s-link href="/app/leaks">View details</s-link>}
+        action={
+          <s-button variant="tertiary" href="/app/leaks">
+            View details
+          </s-button>
+        }
       />
       <div className="pk-board">
         <div className="pk-tile">

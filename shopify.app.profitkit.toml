@@ -2,6 +2,7 @@
 
 client_id = "5243e677cda81e9c8dfa6e51b776a966"
 name = "Redline"
+handle = "redline-app"
 application_url = "https://app.redlineapp.tech"
 embedded = true
 
