@@ -33,11 +33,22 @@ export type MoneyRow = {
  */
 export function MoneyTable({
   rows,
+  noteHeader,
   formatMoney,
   onOpen,
   emptyText,
 }: {
   rows: MoneyRow[];
+  /**
+   * Header for the note column, because the two modes ask different questions.
+   *
+   * Ranking losers, the note names the cause — "Cost of goods · loses $14.15 a
+   * sale" — and "What's behind it" is exactly right. Ranking earners there is no
+   * cause to name, and the column was answering with the margin percentage, which
+   * is not a reason for anything; it just restated the money beside it in another
+   * unit under a header promising an explanation.
+   */
+  noteHeader: string;
   formatMoney: (cents: number) => string;
   onOpen: (title: string) => void;
   emptyText: string;
@@ -63,6 +74,11 @@ export function MoneyTable({
    * bars would then mean wildly different amounts of money. The lopsidedness is the
    * true shape of the data, and it says something useful: the losses are small beside
    * what the catalogue earns.
+   *
+   * The fill anchors left, like every other bar in the app. This cell was the one
+   * exception — `transform-origin: right`, so the fill ended under the right-aligned
+   * figure — and that inverted the reading. The bars grew leftward, putting their
+   * ragged edge on the side the eye starts from, so magnitude scanned backwards.
    */
   const peak = Math.max(...rows.map((r) => Math.abs(r.contributionMargin)), 1);
 
@@ -70,7 +86,7 @@ export function MoneyTable({
     <s-table>
       <s-table-header-row>
         <s-table-header listSlot="primary">Product</s-table-header>
-        <s-table-header listSlot="secondary">What&apos;s behind it</s-table-header>
+        <s-table-header listSlot="secondary">{noteHeader}</s-table-header>
         <s-table-header listSlot="inline" format="currency">
           Contribution margin
         </s-table-header>

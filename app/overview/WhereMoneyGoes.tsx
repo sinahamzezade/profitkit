@@ -7,12 +7,14 @@ import { WidgetBody } from "./ShowMore";
 export function WhereMoneyGoes({
   lead,
   rows,
+  noteHeader,
   formatMoney,
   onOpen,
   moreHref,
 }: {
   lead: ReactNode;
   rows: MoneyRow[];
+  noteHeader: string;
   formatMoney: (cents: number) => string;
   onOpen: (title: string) => void;
   moreHref?: string;
@@ -42,6 +44,7 @@ export function WhereMoneyGoes({
           </s-paragraph>
           <MoneyTable
             rows={rows}
+            noteHeader={noteHeader}
             formatMoney={formatMoney}
             onOpen={onOpen}
             emptyText="No products sold in this period."

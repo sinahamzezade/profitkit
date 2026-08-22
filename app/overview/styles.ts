@@ -584,7 +584,7 @@ export const PK_STYLES = `
     width: 100%;
     height: 100%;
     background: var(--pk-bar);
-    transform-origin: right center;
+    transform-origin: left center;
   }
   .pk-cell-bar-fill.is-loss { background: var(--pk-loss); }
 

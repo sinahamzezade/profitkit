@@ -69,8 +69,22 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
           note:
             row.marginPercent == null
               ? undefined
-              : `${(row.marginPercent * 100).toFixed(1)}% margin`,
+              : `${(row.marginPercent * 100).toFixed(1)}%`,
         }));
+
+  /*
+   * The note column asks a different question in each mode, so it is labelled with
+   * the question it is actually answering.
+   *
+   * Ranking losers, the note names the cause the report attributed — "Cost of goods ·
+   * loses $14.15 a sale" — and "What's behind it" is the right header. Ranking
+   * earners there is no cause: nothing went wrong. The column was filling with
+   * "45.0% margin" under a header promising an explanation, which restates the money
+   * in the next column as a rate and explains nothing. Labelled "Margin" it is a
+   * useful second measure — rate beside amount — and the word drops out of every
+   * cell, since the header already says it.
+   */
+  const moneyNoteHeader = shownLosers.length > 0 ? "What's behind it" : "Margin";
 
   const moneyLead =
     moneyRows.length === 0
@@ -124,6 +138,7 @@ export function OverviewPage({ data }: { data: OverviewReady }) {
       <WhereMoneyGoes
         lead={moneyLead}
         rows={moneyRows}
+        noteHeader={moneyNoteHeader}
         formatMoney={formatMoney}
         onOpen={openProduct}
         moreHref={productCount > moneyRows.length ? "/app/products" : undefined}
