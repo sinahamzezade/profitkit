@@ -21,6 +21,26 @@ import type { RawOrderNode, RawProductNode } from "../app/ingestion/types";
 const SHOP_DOMAIN = process.argv[2] ?? "seed-dev-store.myshopify.com";
 const SEED = 42;
 
+/*
+ * Refuses to run against a production database.
+ *
+ * This script writes ~500 fabricated orders. Pointed at production it would put
+ * invented figures in front of a real merchant, which is the exact thing App Store
+ * requirement 1.1.4 forbids — and the damage would be silent, because the numbers
+ * look plausible. The seed generator is not imported by any route, so the app
+ * runtime can never reach it; this closes the remaining path, which is a human
+ * running the script with the wrong DATABASE_URL in the environment.
+ *
+ * Checked at module load rather than inside main() so it cannot be bypassed by a
+ * caller that imports a helper from here.
+ */
+// eslint-disable-next-line no-undef
+if (process.env.NODE_ENV === "production") {
+  throw new Error(
+    "load-seed refuses to run with NODE_ENV=production: it writes fabricated orders.",
+  );
+}
+
 async function tableCounts() {
   const [shops, products, variants, orders, orderLines, refunds] = await Promise.all([
     prisma.shop.count(),
